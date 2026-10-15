@@ -1,61 +1,34 @@
 package tn.enicarthage.onemorebite;
 
-import tn.enicarthage.onemorebite.config.DatabaseConnection;
+import java.io.IOException;
 import java.sql.Connection;
-import tn.enicarthage.onemorebite.dao.ProduitDAO;
-import tn.enicarthage.onemorebite.model.Produit;
-
-import java.math.BigDecimal;
-import java.util.Date;
-import java.util.List;
+import tn.enicarthage.onemorebite.config.DatabaseConnection;
 
 public class Main {
+
     public static void main(String[] args) {
+        if (!testerConnexion()) {
+            System.out.println("Vérifiez que MySQL est démarré et que database.sql est exécuté.");
+            return;
+        }
 
         try {
-            Connection connection = DatabaseConnection.getConnection();
-             System.out.println("Connexion reussie a MySQL.");
-             connection.close();
-             } catch (Exception e) {
-             System.out.println("Erreur de connexion : " + e.getMessage());
-            }
-
-
-
-
-
-
-
-
-
-        ProduitDAO produitDAO = new ProduitDAO();
-
-        List<Produit> produitsInitiaux = produitDAO.findAll();
-        for (Produit p : produitsInitiaux) {
-            System.out.println(" - [" + p.getId() + "] " + p.getNom() + " | Prix: " + p.getPrix() + " DT | Image: " + p.getImageUrl());
-        }
-
-        Produit nouveauProduit = new Produit(
-                0,
-                "Panier Fruits & Légumes",
-                "Panier varié de saison anti-gaspillage",
-                new BigDecimal("8.500"),
-                5,
-                "https://example.com/images/fruits.jpg",
-                new Date(),
-                true,
-                2
-        );
-
-        boolean succes = produitDAO.create(nouveauProduit);
-        if (succes) {
-            System.out.println("Produit créé : " + nouveauProduit.getId());
-        }
-
-        List<Produit> produitsApresAjout = produitDAO.findAll();
-        for (Produit p : produitsApresAjout) {
-            System.out.println(" - [" + p.getId() + "] " + p.getNom() + " | Prix: " + p.getPrix() + " DT");
+            ApiServer serveur = new ApiServer(8080);
+            serveur.demarrer();
+            System.out.println("Serveur HTTP démarré sur http://localhost:8080");
+            System.out.println("Testez avec Postman : GET http://localhost:8080/produits");
+        } catch (IOException e) {
+            System.out.println("Impossible de démarrer le serveur : " + e.getMessage());
         }
     }
 
+    private static boolean testerConnexion() {
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            System.out.println("Connexion réussie à MySQL.");
+            return true;
+        } catch (Exception e) {
+            System.out.println("Erreur de connexion : " + e.getMessage());
+            return false;
+        }
+    }
 }

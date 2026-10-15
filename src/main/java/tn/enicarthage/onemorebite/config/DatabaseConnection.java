@@ -33,7 +33,7 @@ public final class DatabaseConnection {
     public static void main(String[] args) {
 
         Path databaseScript = Paths.get(
-                "src", "main", "resources", "database.sql"
+                "src", "main", "resources" ,"database", "database.sql"
         );
 
         try {

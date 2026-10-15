@@ -6,84 +6,127 @@ import tn.enicarthage.onemorebite.model.Produit;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public class ProduitDAO {
 
-
-    public boolean create(Produit produit) {
-        String sql = "INSERT INTO produit (nom, description, prix, quantite, image_url, date_expiration, disponibilite, commercant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-
-            stmt.setString(1, produit.getNom());
-            stmt.setString(2, produit.getDescription());
-            stmt.setBigDecimal(3, produit.getPrix());
-            stmt.setInt(4, produit.getQuantite());
-            stmt.setString(5, produit.getImageUrl());
-            stmt.setDate(6, produit.getDateExpiration() != null ? new java.sql.Date(produit.getDateExpiration().getTime()) : null);
-            stmt.setBoolean(7, produit.isDisponibilite());
-            stmt.setInt(8, produit.getCommercantId());
-
-            int affectedRows = stmt.executeUpdate();
-            if (affectedRows > 0) {
-                try (ResultSet rs = stmt.getGeneratedKeys()) {
-                    if (rs.next()) {
-                        produit.setId(rs.getInt(1));
-                    }
-                }
-                return true;
-            }
-        } catch (SQLException e) {
-            System.err.println("Erreur dans ProduitDAO.create : " + e.getMessage());
-        }
-        return false;
-    }
-
-    public List<Produit> findAll() {
+    public List<Produit> listerTous() {
         List<Produit> produits = new ArrayList<>();
-        String sql = "SELECT * FROM produit";
+        String sql = "SELECT * FROM produit ORDER BY id DESC";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
             while (rs.next()) {
-                produits.add(mapResultSetToProduit(rs));
+                produits.add(mapResultSet(rs));
             }
         } catch (SQLException e) {
-            System.err.println("Erreur dans ProduitDAO.findAll : " + e.getMessage());
+            e.printStackTrace();
         }
         return produits;
     }
 
-    public Produit findById(int id) {
+    public Optional<Produit> trouverParId(int id) {
         String sql = "SELECT * FROM produit WHERE id = ?";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setInt(1, id);
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    return mapResultSetToProduit(rs);
+                    return Optional.of(mapResultSet(rs));
                 }
             }
         } catch (SQLException e) {
-            System.err.println(" Erreur dans ProduitDAO.findById : " + e.getMessage());
+            e.printStackTrace();
         }
-        return null;
+        return Optional.empty();
     }
 
+    public Produit creer(Produit p) {
+        String sql = "INSERT INTO produit (nom, description, prix, quantite, image_url, date_expiration, disponibilite, commercant_id) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
-    private Produit mapResultSetToProduit(ResultSet rs) throws SQLException {
-        Produit p = new Produit();
-        p.setId(rs.getInt("id"));
-        p.setNom(rs.getString("nom"));
-        p.setDescription(rs.getString("description"));
-        p.setPrix(rs.getBigDecimal("prix"));
-        p.setQuantite(rs.getInt("quantite"));
-        p.setImageUrl(rs.getString("image_url"));
-        p.setDateExpiration(rs.getDate("date_expiration"));
-        p.setDisponibilite(rs.getBoolean("disponibilite"));
-        p.setCommercantId(rs.getInt("commercant_id"));
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+
+            stmt.setString(1, p.getNom());
+            stmt.setString(2, p.getDescription());
+            stmt.setDouble(3, p.getPrix());
+            stmt.setInt(4, p.getQuantite());
+            stmt.setString(5, p.getImageUrl());
+            stmt.setDate(6, p.getDateExpiration() != null ? Date.valueOf(p.getDateExpiration()) : null);
+            stmt.setBoolean(7, p.isDisponibilite());
+            stmt.setInt(8, p.getCommercantId());
+
+            stmt.executeUpdate();
+
+            try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
+                if (generatedKeys.next()) {
+                    p.setId(generatedKeys.getInt(1));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         return p;
+    }
+
+    public boolean modifier(Produit p) {
+        String sql = "UPDATE produit SET nom = ?, description = ?, prix = ?, quantite = ?, " +
+                "image_url = ?, date_expiration = ?, disponibilite = ?, commercant_id = ? WHERE id = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, p.getNom());
+            stmt.setString(2, p.getDescription());
+            stmt.setDouble(3, p.getPrix());
+            stmt.setInt(4, p.getQuantite());
+            stmt.setString(5, p.getImageUrl());
+            stmt.setDate(6, p.getDateExpiration() != null ? Date.valueOf(p.getDateExpiration()) : null);
+            stmt.setBoolean(7, p.isDisponibilite());
+            stmt.setInt(8, p.getCommercantId());
+            stmt.setInt(9, p.getId());
+
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public boolean supprimer(int id) {
+        String sql = "DELETE FROM produit WHERE id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, id);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    private Produit mapResultSet(ResultSet rs) throws SQLException {
+        Date expDate = rs.getDate("date_expiration");
+        Timestamp createdAt = rs.getTimestamp("created_at");
+        Timestamp updatedAt = rs.getTimestamp("updated_at");
+
+        return new Produit(
+                rs.getInt("id"),
+                rs.getString("nom"),
+                rs.getString("description"),
+                rs.getDouble("prix"),
+                rs.getInt("quantite"),
+                rs.getString("image_url"),
+                expDate != null ? expDate.toLocalDate() : null,
+                rs.getBoolean("disponibilite"),
+                rs.getInt("commercant_id"),
+                createdAt != null ? createdAt.toLocalDateTime() : null,
+                updatedAt != null ? updatedAt.toLocalDateTime() : null
+        );
     }
 }

@@ -3,27 +3,36 @@ CREATE DATABASE onemorebite_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE onemorebite_db;
 
 -- 1. Tables
+
 CREATE TABLE utilisateur (
                              id INT AUTO_INCREMENT PRIMARY KEY,
                              nom VARCHAR(100) NOT NULL,
                              email VARCHAR(255) NOT NULL UNIQUE,
                              mot_de_passe VARCHAR(255) NOT NULL,
-                             telephone VARCHAR(30)
+                             telephone VARCHAR(30),
+                             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 CREATE TABLE administrateur (
                                 id INT PRIMARY KEY,
+                                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                                 CONSTRAINT fk_admin_utilisateur FOREIGN KEY (id) REFERENCES utilisateur(id) ON DELETE CASCADE
 );
 
 CREATE TABLE commercant (
                             id INT PRIMARY KEY,
                             localisation VARCHAR(255) NOT NULL,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                             CONSTRAINT fk_commercant_utilisateur FOREIGN KEY (id) REFERENCES utilisateur(id) ON DELETE CASCADE
 );
 
 CREATE TABLE client (
                         id INT PRIMARY KEY,
+                        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                         CONSTRAINT fk_client_utilisateur FOREIGN KEY (id) REFERENCES utilisateur(id) ON DELETE CASCADE
 );
 
@@ -37,6 +46,8 @@ CREATE TABLE produit (
                          date_expiration DATE,
                          disponibilite BOOLEAN DEFAULT TRUE,
                          commercant_id INT NOT NULL,
+                         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                          CONSTRAINT fk_produit_commercant FOREIGN KEY (commercant_id) REFERENCES commercant(id) ON DELETE CASCADE
 );
 
@@ -50,6 +61,8 @@ CREATE TABLE commande (
                           nom_invite VARCHAR(100),
                           email_invite VARCHAR(255),
                           telephone_invite VARCHAR(30),
+                          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                           CONSTRAINT fk_commande_produit FOREIGN KEY (produit_id) REFERENCES produit(id) ON DELETE CASCADE,
                           CONSTRAINT fk_commande_client FOREIGN KEY (client_id) REFERENCES client(id) ON DELETE SET NULL
 );
@@ -61,11 +74,14 @@ CREATE TABLE avis (
                       date_avis DATETIME DEFAULT CURRENT_TIMESTAMP,
                       client_id INT NOT NULL,
                       produit_id INT NOT NULL,
+                      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                       CONSTRAINT fk_avis_client FOREIGN KEY (client_id) REFERENCES client(id) ON DELETE CASCADE,
                       CONSTRAINT fk_avis_produit FOREIGN KEY (produit_id) REFERENCES produit(id) ON DELETE CASCADE
 );
 
 -- 2. Insertions ordonnées
+
 INSERT INTO utilisateur (id, nom, email, mot_de_passe, telephone) VALUES
                                                                       (1, 'Admin System', 'admin@onemorebite.tn', 'admin123', '71000000'),
                                                                       (2, 'Boulangerie Ben Ali', 'contact@benali.tn', 'pass123', '71111111'),
