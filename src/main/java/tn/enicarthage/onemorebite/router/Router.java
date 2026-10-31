@@ -2,8 +2,11 @@ package tn.enicarthage.onemorebite.router;
 
 import com.google.gson.*;
 import com.sun.net.httpserver.HttpExchange;
+import tn.enicarthage.onemorebite.controller.AuthController;
 import tn.enicarthage.onemorebite.controller.ProduitController;
+import tn.enicarthage.onemorebite.dto.LoginRequest;
 import tn.enicarthage.onemorebite.dto.ProduitRequest;
+import tn.enicarthage.onemorebite.exception.AuthenticationException;
 import tn.enicarthage.onemorebite.exception.ResourceNotFoundException;
 
 import java.io.IOException;
@@ -29,8 +32,20 @@ public class Router {
             .create();
 
     private final ProduitController produitController = new ProduitController();
+    private final AuthController authController = new AuthController();
 
     public void dispatcher(HttpExchange exchange) throws IOException {
+        // En-têtes CORS universels pour intégration web / frontend
+        exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+        exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+        if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+            exchange.sendResponseHeaders(204, -1);
+            exchange.close();
+            return;
+        }
+
         String methode = exchange.getRequestMethod();
         String chemin = exchange.getRequestURI().getPath();
         String[] segments = chemin.split("/");
@@ -38,6 +53,8 @@ public class Router {
         try {
             Reponse reponse = router(methode, segments, exchange);
             envoyer(exchange, reponse.statut(), reponse.corps());
+        } catch (AuthenticationException e) {
+            envoyer(exchange, 401, messageErreur(e.getMessage()));
         } catch (ResourceNotFoundException e) {
             envoyer(exchange, 404, messageErreur(e.getMessage()));
         } catch (IllegalArgumentException e) {
@@ -54,8 +71,40 @@ public class Router {
 
         return switch (segments[1]) {
             case "produits" -> routesProduit(methode, segments, exchange);
+            case "auth", "admin" -> routesAuth(methode, segments, exchange);
             default -> throw new ResourceNotFoundException("Route inconnue /" + segments[1]);
         };
+    }
+
+    private Reponse routesAuth(String methode, String[] segments, HttpExchange exchange) throws IOException {
+        if (segments.length == 3) {
+            String action = segments[2];
+            return switch (action) {
+                case "login" -> {
+                    if (!"POST".equalsIgnoreCase(methode)) {
+                        throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                    }
+                    LoginRequest request = lireCorps(exchange, LoginRequest.class);
+                    yield new Reponse(200, gson.toJson(authController.login(request)));
+                }
+                case "logout" -> {
+                    if (!"POST".equalsIgnoreCase(methode)) {
+                        throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                    }
+                    String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
+                    yield new Reponse(200, gson.toJson(authController.logout(authHeader)));
+                }
+                case "me", "session", "verifier" -> {
+                    if (!"GET".equalsIgnoreCase(methode)) {
+                        throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                    }
+                    String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
+                    yield new Reponse(200, gson.toJson(authController.me(authHeader)));
+                }
+                default -> throw new ResourceNotFoundException("Action inconnue: /" + segments[1] + "/" + action);
+            };
+        }
+        throw new ResourceNotFoundException("Route auth inconnue.");
     }
 
     private Reponse routesProduit(String methode, String[] segments, HttpExchange exchange) throws IOException {

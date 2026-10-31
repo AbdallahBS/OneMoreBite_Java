@@ -83,7 +83,7 @@ CREATE TABLE avis (
 -- 2. Insertions ordonnées
 
 INSERT INTO utilisateur (id, nom, email, mot_de_passe, telephone) VALUES
-                                                                      (1, 'Admin System', 'admin@onemorebite.tn', 'admin123', '71000000'),
+                                                                      (1, 'Admin Enicar', 'admin@enicar.com', 'admin', '71000000'),
                                                                       (2, 'Boulangerie Ben Ali', 'contact@benali.tn', 'pass123', '71111111'),
                                                                       (3, 'Sami Client', 'sami@gmail.com', 'client123', '20222222');
 

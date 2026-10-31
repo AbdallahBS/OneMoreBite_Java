@@ -35,7 +35,7 @@ public class ProduitService {
     }
 
     public Produit modifier(int id, ProduitRequest req) {
-        Produit p = obtenir(id); // Vériﬁe l'existence (lève 404 si introuvable)
+        Produit p = obtenir(id);
         p.setNom(req.nom());
         p.setDescription(req.description());
         p.setPrix(req.prix());
