@@ -15,7 +15,7 @@ public class AuthController {
         return authService.login(request);
     }
 
-    public AdminResponse me(String authHeader) {
+    public Object me(String authHeader) {
         return authService.validerSession(authHeader);
     }
 

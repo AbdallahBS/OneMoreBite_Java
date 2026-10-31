@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "9b12a84d-28e6-42d4-a1e9-9a28e3b1f5d2",
     "name": "OneMoreBite API",
-    "description": "Collection complète des routes de l'API OneMoreBite (Authentification Administrateur avec session JWT, vérification de profil, et CRUD complet des produits).",
+    "description": "Collection complète des routes OneMoreBite :\n1. Authentification Admin & Commerçant avec JWT et BCrypt\n2. Cycle de vie Commerçant (Inscription EN_ATTENTE -> Validation Admin ACTIF / REJETE)\n3. CRUD complet des Produits",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -15,11 +15,21 @@
       "key": "admin_token",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "commercant_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "nouveau_commercant_id",
+      "value": "4",
+      "type": "string"
     }
   ],
   "item": [
     {
-      "name": "1. Authentification Admin",
+      "name": "1. Authentification & Sessions",
       "item": [
         {
           "name": "Login Admin (Succès)",
@@ -28,7 +38,7 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test(\"Statut HTTP 200 - Connexion réussie\", function () {",
+                  "pm.test(\"Statut HTTP 200 - Connexion Admin réussie\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
                   "",
@@ -69,66 +79,24 @@
                 "login"
               ]
             },
-            "description": "Authentifie l'administrateur unique par défaut (admin@enicar.com / admin) et génère une session JWT de 24h. Le script de test stocke automatiquement le token dans la variable {{admin_token}}."
+            "description": "Connexion de l'administrateur unique (admin@enicar.com / admin). Le script de test enregistre automatiquement le token dans {{admin_token}}."
           },
           "response": []
         },
         {
-          "name": "Login Admin (Échec - Mot de passe incorrect)",
+          "name": "Vérifier Session (GET /auth/me)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test(\"Statut HTTP 401 - Non autorisé\", function () {",
-                  "    pm.response.to.have.status(401);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"admin@enicar.com\",\n  \"motDePasse\": \"mauvaismdp\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/auth/login",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
-            },
-            "description": "Test de validation d'erreur : vérifie qu'un mot de passe erroné renvoie bien une erreur 401 Unauthorized."
-          },
-          "response": []
-        },
-        {
-          "name": "Session Admin (GET /auth/me)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Statut HTTP 200 - Profil admin valide\", function () {",
+                  "pm.test(\"Statut HTTP 200 - Session active\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
                   "",
                   "var jsonData = pm.response.json();",
-                  "pm.test(\"Profil administrateur vérifié\", function () {",
-                  "    pm.expect(jsonData.email).to.eql('admin@enicar.com');",
-                  "    pm.expect(jsonData.role).to.eql('ADMIN');",
+                  "pm.test(\"Informations de profil retournées\", function () {",
+                  "    pm.expect(jsonData).to.have.property('email');",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -158,12 +126,12 @@
                 "me"
               ]
             },
-            "description": "Vérifie la validité du token JWT dans l'en-tête Authorization: Bearer <token> et renvoie les informations de l'administrateur connecté."
+            "description": "Renvoie le profil de l'utilisateur connecté (Admin ou Commerçant) à partir du Bearer Token."
           },
           "response": []
         },
         {
-          "name": "Logout Admin (POST /auth/logout)",
+          "name": "Déconnexion (POST /auth/logout)",
           "event": [
             {
               "listen": "test",
@@ -174,13 +142,12 @@
                   "});",
                   "",
                   "var jsonData = pm.response.json();",
-                  "pm.test(\"Message de confirmation de déconnexion\", function () {",
+                  "pm.test(\"Message de confirmation\", function () {",
                   "    pm.expect(jsonData).to.have.property('message');",
                   "});",
                   "",
-                  "// Nettoyer la variable admin_token après déconnexion",
                   "pm.collectionVariables.set(\"admin_token\", \"\");",
-                  "console.log(\"Variable {{admin_token}} réinitialisée après déconnexion\");"
+                  "pm.collectionVariables.set(\"commercant_token\", \"\");"
                 ],
                 "type": "text/javascript"
               }
@@ -209,14 +176,318 @@
                 "logout"
               ]
             },
-            "description": "Révoque la session JWT côté serveur. Le token est ajouté à la liste des tokens invalidés et la variable {{admin_token}} est réinitialisée."
+            "description": "Invalide le token JWT côté serveur via la liste de révocation."
           },
           "response": []
         }
       ]
     },
     {
-      "name": "2. Produits",
+      "name": "2. Workflow Commerçants (Inscription & Validation Admin)",
+      "item": [
+        {
+          "name": "1. Inscription Commerçant (Statut initial EN_ATTENTE)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 201 - Commerçant créé\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Le statut est EN_ATTENTE\", function () {",
+                  "    pm.expect(jsonData.statut).to.eql('EN_ATTENTE');",
+                  "});",
+                  "",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set(\"nouveau_commercant_id\", jsonData.id.toString());",
+                  "    console.log(\"ID nouveau commerçant sauvegardé : \" + jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nom\": \"Pâtisserie Saveurs & Délices\",\n  \"email\": \"patisserie@delices.tn\",\n  \"motDePasse\": \"pass1234\",\n  \"telephone\": \"71222333\",\n  \"localisation\": \"Ariana, Ennasr 2\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/commercant/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "commercant",
+                "register"
+              ]
+            },
+            "description": "Inscription d'un nouveau commerçant. Son mot de passe est haché avec BCrypt et son compte est créé avec le statut 'EN_ATTENTE'."
+          },
+          "response": []
+        },
+        {
+          "name": "2. Tentative Login Commerçant non validé (Erreur 401 - En attente)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 401 - Accès refusé car compte EN_ATTENTE\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Message explicite d'attente de validation\", function () {",
+                  "    pm.expect(jsonData.erreur).to.include(\"en attente de validation\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"patisserie@delices.tn\",\n  \"motDePasse\": \"pass1234\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/commercant/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "commercant",
+                "login"
+              ]
+            },
+            "description": "Démontre que le commerçant ne peut pas se connecter tant que son compte est EN_ATTENTE."
+          },
+          "response": []
+        },
+        {
+          "name": "3. Admin: Lister les commerçants en attente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Retourne une liste de commerçants\", function () {",
+                  "    pm.expect(pm.response.json()).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/commercants?statut=EN_ATTENTE",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "commercants"
+              ],
+              "query": [
+                {
+                  "key": "statut",
+                  "value": "EN_ATTENTE"
+                }
+              ]
+            },
+            "description": "Route réservée à l'administrateur permettant de filtrer les commerçants qui attendent une validation."
+          },
+          "response": []
+        },
+        {
+          "name": "4. Admin: Accepter le commerçant (Passage à ACTIF)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Compte accepté\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Le statut est maintenant ACTIF\", function () {",
+                  "    pm.expect(jsonData.statut).to.eql('ACTIF');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/commercants/{{nouveau_commercant_id}}/accepter",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "commercants",
+                "{{nouveau_commercant_id}}",
+                "accepter"
+              ]
+            },
+            "description": "Action administrative qui valide le compte du commerçant et fait passer son statut à 'ACTIF'."
+          },
+          "response": []
+        },
+        {
+          "name": "5. Login Commerçant après acceptation (Succès)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Connexion Commerçant réussie\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Rôle COMMERCANT dans le JWT\", function () {",
+                  "    pm.expect(jsonData.role).to.eql('COMMERCANT');",
+                  "});",
+                  "",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set(\"commercant_token\", jsonData.token);",
+                  "    console.log(\"Token JWT commerçant sauvegardé\");",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"patisserie@delices.tn\",\n  \"motDePasse\": \"pass1234\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/commercant/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "commercant",
+                "login"
+              ]
+            },
+            "description": "Après acceptation par l'admin, le commerçant peut se connecter et reçoit son token JWT avec le rôle COMMERCANT."
+          },
+          "response": []
+        },
+        {
+          "name": "6. Admin: Rejeter un commerçant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Compte rejeté\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Le statut est REJETE\", function () {",
+                  "    pm.expect(jsonData.statut).to.eql('REJETE');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/commercants/{{nouveau_commercant_id}}/rejeter",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "commercants",
+                "{{nouveau_commercant_id}}",
+                "rejeter"
+              ]
+            },
+            "description": "Action administrative pour refuser/rejeter un compte commerçant."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Produits",
       "item": [
         {
           "name": "Lister tous les produits",

@@ -28,10 +28,15 @@ public class Main {
             serveur.demarrer();
             System.out.println("Serveur HTTP démarré sur http://localhost:" + PORT);
             System.out.println("Endpoints disponibles :");
-            System.out.println("  POST http://localhost:" + PORT + "/auth/login   (Connexion admin)");
-            System.out.println("  GET  http://localhost:" + PORT + "/auth/me      (Session admin - Bearer Token)");
-            System.out.println("  POST http://localhost:" + PORT + "/auth/logout  (Déconnexion admin - Invalidation JWT)");
-            System.out.println("  GET  http://localhost:" + PORT + "/produits     (Liste des produits)");
+            System.out.println("  POST http://localhost:" + PORT + "/auth/login                (Connexion Admin / Commerçant)");
+            System.out.println("  GET  http://localhost:" + PORT + "/auth/me                   (Session profil - Bearer Token)");
+            System.out.println("  POST http://localhost:" + PORT + "/auth/logout               (Déconnexion - Invalidation JWT)");
+            System.out.println("  POST http://localhost:" + PORT + "/auth/commercant/register   (Inscription commerçant - EN_ATTENTE)");
+            System.out.println("  POST http://localhost:" + PORT + "/auth/commercant/login      (Connexion commerçant)");
+            System.out.println("  GET  http://localhost:" + PORT + "/admin/commercants         (Admin: Liste des commerçants ?statut=EN_ATTENTE)");
+            System.out.println("  PUT  http://localhost:" + PORT + "/admin/commercants/:id/accepter (Admin: Valider compte -> ACTIF)");
+            System.out.println("  PUT  http://localhost:" + PORT + "/admin/commercants/:id/rejeter  (Admin: Rejeter compte -> REJETE)");
+            System.out.println("  GET  http://localhost:" + PORT + "/produits                  (Liste des produits)");
         } catch (IOException e) {
             System.out.println("Impossible de démarrer le serveur : " + e.getMessage());
         }

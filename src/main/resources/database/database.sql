@@ -24,6 +24,7 @@ CREATE TABLE administrateur (
 CREATE TABLE commercant (
                             id INT PRIMARY KEY,
                             localisation VARCHAR(255) NOT NULL,
+                            statut ENUM('EN_ATTENTE', 'ACTIF', 'REJETE') DEFAULT 'EN_ATTENTE',
                             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                             CONSTRAINT fk_commercant_utilisateur FOREIGN KEY (id) REFERENCES utilisateur(id) ON DELETE CASCADE
@@ -88,7 +89,7 @@ INSERT INTO utilisateur (id, nom, email, mot_de_passe, telephone) VALUES
                                                                       (3, 'Sami Client', 'sami@gmail.com', 'client123', '20222222');
 
 INSERT INTO administrateur (id) VALUES (1);
-INSERT INTO commercant (id, localisation) VALUES (2, 'Tunis, Centre Ville');
+INSERT INTO commercant (id, localisation, statut) VALUES (2, 'Tunis, Centre Ville', 'ACTIF');
 INSERT INTO client (id) VALUES (3);
 
 INSERT INTO produit (id, nom, description, prix, quantite, image_url, date_expiration, disponibilite, commercant_id) VALUES

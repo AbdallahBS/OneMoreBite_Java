@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import tn.enicarthage.onemorebite.exception.AuthenticationException;
 import tn.enicarthage.onemorebite.model.Administrateur;
+import tn.enicarthage.onemorebite.model.Commercant;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -23,6 +24,8 @@ public class JwtUtil {
     private static final long EXPIRATION_SECONDS = 24 * 60 * 60; // 24 hours
 
     private final Gson gson = new Gson();
+
+    // Liste des tokens révoqués (Blacklist thread-safe pour le logout)
     private final Set<String> tokensRevoques = ConcurrentHashMap.newKeySet();
 
     public record JwtClaims(
@@ -34,7 +37,7 @@ public class JwtUtil {
             long exp
     ) {}
 
-    public String genererToken(Administrateur admin) {
+    public String genererToken(int id, String email, String nom, String role) {
         try {
             long now = Instant.now().getEpochSecond();
             long exp = now + EXPIRATION_SECONDS;
@@ -43,10 +46,10 @@ public class JwtUtil {
             header.addProperty("typ", "JWT");
             String encodedHeader = base64UrlEncode(gson.toJson(header).getBytes(StandardCharsets.UTF_8));
             JsonObject payload = new JsonObject();
-            payload.addProperty("sub", admin.getEmail());
-            payload.addProperty("id", admin.getId());
-            payload.addProperty("nom", admin.getNom());
-            payload.addProperty("role", "ADMIN");
+            payload.addProperty("sub", email);
+            payload.addProperty("id", id);
+            payload.addProperty("nom", nom);
+            payload.addProperty("role", role);
             payload.addProperty("iat", now);
             payload.addProperty("exp", exp);
             String encodedPayload = base64UrlEncode(gson.toJson(payload).getBytes(StandardCharsets.UTF_8));
@@ -59,12 +62,21 @@ public class JwtUtil {
         }
     }
 
+    public String genererToken(Administrateur admin) {
+        return genererToken(admin.getId(), admin.getEmail(), admin.getNom(), "ADMIN");
+    }
+
+    public String genererToken(Commercant commercant) {
+        return genererToken(commercant.getId(), commercant.getEmail(), commercant.getNom(), "COMMERCANT");
+    }
+
     public JwtClaims validerToken(String token) {
         if (token == null || token.isBlank()) {
             throw new AuthenticationException("Token manquant ou vide.");
         }
 
         String cleanedToken = token.trim();
+
         if (estRevoque(cleanedToken)) {
             throw new AuthenticationException("Session révoquée suite à une déconnexion. Veuillez vous reconnecter.");
         }
@@ -73,6 +85,7 @@ public class JwtUtil {
         if (parts.length != 3) {
             throw new AuthenticationException("Format de token JWT invalide.");
         }
+
         String encodedHeader = parts[0];
         String encodedPayload = parts[1];
         String signature = parts[2];
@@ -87,18 +100,32 @@ public class JwtUtil {
             throw new AuthenticationException("Signature du token JWT invalide.");
         }
 
+        // 2. Décodage du payload
         String payloadJson = new String(base64UrlDecode(encodedPayload), StandardCharsets.UTF_8);
         JwtClaims claims = gson.fromJson(payloadJson, JwtClaims.class);
 
+        // 3. Vérification de l'expiration
         long now = Instant.now().getEpochSecond();
         if (claims.exp() < now) {
             throw new AuthenticationException("Session expirée. Veuillez vous reconnecter.");
         }
 
+        return claims;
+    }
+
+    public JwtClaims validerTokenAdmin(String token) {
+        JwtClaims claims = validerToken(token);
         if (!"ADMIN".equalsIgnoreCase(claims.role())) {
             throw new AuthenticationException("Accès non autorisé : rôle administrateur requis.");
         }
+        return claims;
+    }
 
+    public JwtClaims validerTokenCommercant(String token) {
+        JwtClaims claims = validerToken(token);
+        if (!"COMMERCANT".equalsIgnoreCase(claims.role()) && !"ADMIN".equalsIgnoreCase(claims.role())) {
+            throw new AuthenticationException("Accès non autorisé : compte commerçant requis.");
+        }
         return claims;
     }
 

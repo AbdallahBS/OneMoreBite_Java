@@ -3,11 +3,15 @@ package tn.enicarthage.onemorebite.router;
 import com.google.gson.*;
 import com.sun.net.httpserver.HttpExchange;
 import tn.enicarthage.onemorebite.controller.AuthController;
+import tn.enicarthage.onemorebite.controller.CommercantController;
 import tn.enicarthage.onemorebite.controller.ProduitController;
+import tn.enicarthage.onemorebite.dto.CommercantRegisterRequest;
 import tn.enicarthage.onemorebite.dto.LoginRequest;
 import tn.enicarthage.onemorebite.dto.ProduitRequest;
 import tn.enicarthage.onemorebite.exception.AuthenticationException;
 import tn.enicarthage.onemorebite.exception.ResourceNotFoundException;
+import tn.enicarthage.onemorebite.security.JwtUtil;
+import tn.enicarthage.onemorebite.service.AuthService;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -33,6 +37,9 @@ public class Router {
 
     private final ProduitController produitController = new ProduitController();
     private final AuthController authController = new AuthController();
+    private final CommercantController commercantController = new CommercantController();
+    private final AuthService authService = new AuthService();
+    private final JwtUtil jwtUtil = new JwtUtil();
 
     public void dispatcher(HttpExchange exchange) throws IOException {
         // En-têtes CORS universels pour intégration web / frontend
@@ -71,7 +78,9 @@ public class Router {
 
         return switch (segments[1]) {
             case "produits" -> routesProduit(methode, segments, exchange);
-            case "auth", "admin" -> routesAuth(methode, segments, exchange);
+            case "auth" -> routesAuth(methode, segments, exchange);
+            case "admin" -> routesAdmin(methode, segments, exchange);
+            case "commercants" -> routesCommercantPublic(methode, segments, exchange);
             default -> throw new ResourceNotFoundException("Route inconnue /" + segments[1]);
         };
     }
@@ -103,8 +112,111 @@ public class Router {
                 }
                 default -> throw new ResourceNotFoundException("Action inconnue: /" + segments[1] + "/" + action);
             };
+        } else if (segments.length == 4 && "commercant".equalsIgnoreCase(segments[2])) {
+            String subAction = segments[3];
+            return switch (subAction) {
+                case "register", "inscription" -> {
+                    if (!"POST".equalsIgnoreCase(methode)) {
+                        throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                    }
+                    CommercantRegisterRequest req = lireCorps(exchange, CommercantRegisterRequest.class);
+                    yield new Reponse(201, gson.toJson(commercantController.inscrire(req)));
+                }
+                case "login" -> {
+                    if (!"POST".equalsIgnoreCase(methode)) {
+                        throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                    }
+                    LoginRequest req = lireCorps(exchange, LoginRequest.class);
+                    yield new Reponse(200, gson.toJson(commercantController.login(req)));
+                }
+                default -> throw new ResourceNotFoundException("Action inconnue: /auth/commercant/" + subAction);
+            };
         }
         throw new ResourceNotFoundException("Route auth inconnue.");
+    }
+
+    private Reponse routesAdmin(String methode, String[] segments, HttpExchange exchange) throws IOException {
+        if (segments.length == 3 && "login".equalsIgnoreCase(segments[2])) {
+            if (!"POST".equalsIgnoreCase(methode)) {
+                throw new IllegalArgumentException("Méthode non supportée: " + methode);
+            }
+            LoginRequest req = lireCorps(exchange, LoginRequest.class);
+            return new Reponse(200, gson.toJson(authController.login(req)));
+        }
+
+        if (segments.length == 3 && "me".equalsIgnoreCase(segments[2])) {
+            String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
+            return new Reponse(200, gson.toJson(authController.me(authHeader)));
+        }
+
+        // Toutes les autres routes sous /admin nécessitent un token ADMIN valide
+        exigerTokenAdmin(exchange);
+
+        if (segments.length >= 3 && "commercants".equalsIgnoreCase(segments[2])) {
+            if (segments.length == 3) {
+                // GET /admin/commercants (?statut=EN_ATTENTE)
+                if (!"GET".equalsIgnoreCase(methode)) {
+                    throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                }
+                String statut = extraireParametre(exchange.getRequestURI().getQuery(), "statut");
+                return new Reponse(200, gson.toJson(commercantController.lister(statut)));
+            } else if (segments.length == 4) {
+                // GET /admin/commercants/{id}
+                int id = parseId(segments[3]);
+                if (!"GET".equalsIgnoreCase(methode)) {
+                    throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                }
+                return new Reponse(200, gson.toJson(commercantController.obtenir(id)));
+            } else if (segments.length == 5) {
+                int id = parseId(segments[3]);
+                String action = segments[4];
+                return switch (action) {
+                    case "accepter", "valider", "approuver" -> {
+                        if (!"PUT".equalsIgnoreCase(methode) && !"POST".equalsIgnoreCase(methode)) {
+                            throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                        }
+                        yield new Reponse(200, gson.toJson(commercantController.accepter(id)));
+                    }
+                    case "rejeter", "refuser" -> {
+                        if (!"PUT".equalsIgnoreCase(methode) && !"POST".equalsIgnoreCase(methode)) {
+                            throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                        }
+                        yield new Reponse(200, gson.toJson(commercantController.rejeter(id)));
+                    }
+                    default -> throw new ResourceNotFoundException("Action admin inconnue: " + action);
+                };
+            }
+        }
+
+        throw new ResourceNotFoundException("Route admin inconnue.");
+    }
+
+    private Reponse routesCommercantPublic(String methode, String[] segments, HttpExchange exchange) throws IOException {
+        if (segments.length == 2) {
+            return switch (methode) {
+                case "GET" -> new Reponse(200, gson.toJson(commercantController.lister("ACTIF")));
+                case "POST" -> {
+                    CommercantRegisterRequest req = lireCorps(exchange, CommercantRegisterRequest.class);
+                    yield new Reponse(201, gson.toJson(commercantController.inscrire(req)));
+                }
+                default -> throw new IllegalArgumentException("Méthode non supportée: " + methode);
+            };
+        } else if (segments.length == 3) {
+            if ("register".equalsIgnoreCase(segments[2])) {
+                if (!"POST".equalsIgnoreCase(methode)) {
+                    throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                }
+                CommercantRegisterRequest req = lireCorps(exchange, CommercantRegisterRequest.class);
+                return new Reponse(201, gson.toJson(commercantController.inscrire(req)));
+            } else {
+                int id = parseId(segments[2]);
+                if (!"GET".equalsIgnoreCase(methode)) {
+                    throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                }
+                return new Reponse(200, gson.toJson(commercantController.obtenir(id)));
+            }
+        }
+        throw new ResourceNotFoundException("Route inconnue.");
     }
 
     private Reponse routesProduit(String methode, String[] segments, HttpExchange exchange) throws IOException {
@@ -133,6 +245,25 @@ public class Router {
             };
         }
         throw new ResourceNotFoundException("Route inconnue.");
+    }
+
+    private void exigerTokenAdmin(HttpExchange exchange) {
+        String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
+        String token = authService.extraireToken(authHeader);
+        jwtUtil.validerTokenAdmin(token);
+    }
+
+    private String extraireParametre(String query, String paramName) {
+        if (query == null || query.isBlank()) {
+            return null;
+        }
+        for (String pair : query.split("&")) {
+            String[] parts = pair.split("=");
+            if (parts.length == 2 && parts[0].equalsIgnoreCase(paramName)) {
+                return parts[1];
+            }
+        }
+        return null;
     }
 
     private <T> T lireCorps(HttpExchange exchange, Class<T> clazz) throws IOException {
