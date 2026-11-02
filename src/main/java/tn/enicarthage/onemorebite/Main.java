@@ -16,7 +16,11 @@ public class Main {
             ApiServer serveur = new ApiServer(8080);
             serveur.demarrer();
             System.out.println("Serveur HTTP démarré sur http://localhost:8080");
-            System.out.println("Testez avec Postman : GET http://localhost:8080/produits");
+            System.out.println("Page interactive des avis : http://localhost:8080/page-avis");
+            System.out.println("Endpoints API :");
+            System.out.println(" - GET /produits");
+            System.out.println(" - GET/POST /avis");
+            System.out.println(" - GET/POST /produits/{id}/avis");
         } catch (IOException e) {
             System.out.println("Impossible de démarrer le serveur : " + e.getMessage());
         }
