@@ -3,6 +3,7 @@ package tn.enicarthage.onemorebite.security;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import tn.enicarthage.onemorebite.exception.AuthenticationException;
+import tn.enicarthage.onemorebite.exception.ForbiddenException;
 import tn.enicarthage.onemorebite.model.Administrateur;
 import tn.enicarthage.onemorebite.model.Commercant;
 
@@ -116,7 +117,7 @@ public class JwtUtil {
     public JwtClaims validerTokenAdmin(String token) {
         JwtClaims claims = validerToken(token);
         if (!"ADMIN".equalsIgnoreCase(claims.role())) {
-            throw new AuthenticationException("Accès non autorisé : rôle administrateur requis.");
+            throw new ForbiddenException("Accès non autorisé : rôle administrateur requis.");
         }
         return claims;
     }
@@ -124,7 +125,7 @@ public class JwtUtil {
     public JwtClaims validerTokenCommercant(String token) {
         JwtClaims claims = validerToken(token);
         if (!"COMMERCANT".equalsIgnoreCase(claims.role()) && !"ADMIN".equalsIgnoreCase(claims.role())) {
-            throw new AuthenticationException("Accès non autorisé : compte commerçant requis.");
+            throw new ForbiddenException("Accès non autorisé : compte commerçant requis.");
         }
         return claims;
     }

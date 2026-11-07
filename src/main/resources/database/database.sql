@@ -43,7 +43,7 @@ CREATE TABLE produit (
                          description TEXT,
                          prix DECIMAL(10, 3) NOT NULL,
                          quantite INT NOT NULL DEFAULT 0,
-                         image_url VARCHAR(255),
+                         image_url VARCHAR(500),
                          date_expiration DATE,
                          disponibilite BOOLEAN DEFAULT TRUE,
                          commercant_id INT NOT NULL,

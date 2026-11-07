@@ -36,7 +36,19 @@ public class Main {
             System.out.println("  GET  http://localhost:" + PORT + "/admin/commercants         (Admin: Liste des commerçants ?statut=EN_ATTENTE)");
             System.out.println("  PUT  http://localhost:" + PORT + "/admin/commercants/:id/accepter (Admin: Valider compte -> ACTIF)");
             System.out.println("  PUT  http://localhost:" + PORT + "/admin/commercants/:id/rejeter  (Admin: Rejeter compte -> REJETE)");
-            System.out.println("  GET  http://localhost:" + PORT + "/produits                  (Liste des produits)");
+            System.out.println("  GET  http://localhost:" + PORT + "/produits                  (Liste publique des produits ?disponible=true&commercantId=2&recherche=...)");
+            System.out.println("  GET  http://localhost:" + PORT + "/produits/:id              (Détail d'un produit)");
+            System.out.println("  POST http://localhost:" + PORT + "/produits                  (Commerçant: créer un produit - Bearer Token)");
+            System.out.println("  GET  http://localhost:" + PORT + "/produits/mes-produits     (Commerçant: mes produits - Bearer Token)");
+            System.out.println("  PUT  http://localhost:" + PORT + "/produits/:id              (Commerçant propriétaire / Admin: modifier)");
+            System.out.println("  PUT  http://localhost:" + PORT + "/produits/:id/disponibilite (Commerçant / Admin: activer/désactiver)");
+            System.out.println("  PUT  http://localhost:" + PORT + "/produits/:id/stock        (Commerçant / Admin: mettre à jour le stock)");
+            System.out.println("  DELETE http://localhost:" + PORT + "/produits/:id            (Commerçant propriétaire / Admin: supprimer)");
+            System.out.println("  POST http://localhost:" + PORT + "/produits/images           (Upload Cloudinary - retourne imageUrl)");
+            System.out.println("  DELETE http://localhost:" + PORT + "/produits/images?publicId=... (Suppression image Cloudinary)");
+            System.out.println("  GET  http://localhost:" + PORT + "/admin/produits            (Admin: tous les produits + filtres)");
+            System.out.println("  GET  http://localhost:" + PORT + "/admin/produits/statistiques (Admin: statistiques produits)");
+            System.out.println("  POST http://localhost:" + PORT + "/admin/produits            (Admin: créer un produit pour un commerçant)");
         } catch (IOException e) {
             System.out.println("Impossible de démarrer le serveur : " + e.getMessage());
         }

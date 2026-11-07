@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "9b12a84d-28e6-42d4-a1e9-9a28e3b1f5d2",
     "name": "OneMoreBite API",
-    "description": "Collection complète des routes OneMoreBite :\n1. Authentification Admin & Commerçant avec JWT et BCrypt\n2. Cycle de vie Commerçant (Inscription EN_ATTENTE -> Validation Admin ACTIF / REJETE)\n3. CRUD complet des Produits",
+    "description": "Collection complète des routes OneMoreBite :\n1. Authentification Admin & Commerçant avec JWT et BCrypt\n2. Cycle de vie Commerçant (Inscription EN_ATTENTE -> Validation Admin ACTIF / REJETE)\n3. Consultation publique des Produits\n4. Gestion des Produits par le Commerçant (CRUD, stock, disponibilité, images Cloudinary)\n5. Gestion et modération des Produits par l'Admin (CRUD, statistiques, images Cloudinary)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -24,6 +24,26 @@
     {
       "key": "nouveau_commercant_id",
       "value": "4",
+      "type": "string"
+    },
+    {
+      "key": "produit_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "admin_produit_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "image_url",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "image_public_id",
+      "value": "",
       "type": "string"
     }
   ],
@@ -487,26 +507,10 @@
       ]
     },
     {
-      "name": "3. Produits",
+      "name": "3. Produits (Public)",
       "item": [
         {
           "name": "Lister tous les produits",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Statut HTTP 200\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"La réponse est un tableau\", function () {",
-                  "    pm.expect(pm.response.json()).to.be.an('array');",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
           "request": {
             "method": "GET",
             "header": [],
@@ -519,9 +523,66 @@
                 "produits"
               ]
             },
-            "description": "Récupère tous les produits disponibles ordonnés par identifiant décroissant."
+            "description": "Liste publique de tous les produits. Filtres optionnels : ?commercantId=2&disponible=true&recherche=panier"
           },
-          "response": []
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Liste récupérée\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"La réponse est un tableau\", function () {",
+                  "    pm.expect(jsonData).to.be.an(\"array\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Lister les produits disponibles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/produits?disponible=true",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "produits"
+              ],
+              "query": [
+                {
+                  "key": "disponible",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Liste uniquement les produits marqués comme disponibles."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Produits disponibles récupérés\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"La réponse est un tableau\", function () {",
+                  "    pm.expect(pm.response.json()).to.be.an(\"array\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Obtenir un produit par ID",
@@ -538,25 +599,36 @@
                 "1"
               ]
             },
-            "description": "Récupère les détails d'un produit par son identifiant unique."
+            "description": "Détail public d'un produit avec son image Cloudinary (imageUrl)."
           },
-          "response": []
-        },
-        {
-          "name": "Créer un produit",
+          "response": [],
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test(\"Statut HTTP 201 - Produit créé\", function () {",
-                  "    pm.response.to.have.status(201);",
+                  "pm.test(\"Statut HTTP 200 - Produit récupéré\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Contient les champs principaux\", function () {",
+                  "    pm.expect(jsonData).to.have.property(\"id\");",
+                  "    pm.expect(jsonData).to.have.property(\"nom\");",
+                  "    pm.expect(jsonData).to.have.property(\"prix\");",
                   "});"
                 ],
                 "type": "text/javascript"
               }
             }
-          ],
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Gestion Produits (Commerçant)",
+      "item": [
+        {
+          "name": "1. Login Commerçant (prérequis)",
           "request": {
             "method": "POST",
             "header": [
@@ -565,10 +637,105 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{base_url}}/auth/commercant/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "commercant",
+                "login"
+              ]
+            },
+            "description": "Connexion avec le commerçant seed (contact@benali.tn / pass123). Le token est enregistré dans {{commercant_token}}.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nom\": \"Panier Pâtisseries du Jour\",\n  \"description\": \"Assortiment de 6 gâteaux et tartelettes\",\n  \"prix\": 12.500,\n  \"quantite\": 8,\n  \"imageUrl\": \"https://images.unsplash.com/photo-1555507036-ab1f4038808a\",\n  \"dateExpiration\": \"2026-11-05\",\n  \"disponibilite\": true,\n  \"commercantId\": 2\n}"
+              "raw": "{\n  \"email\": \"contact@benali.tn\",\n  \"motDePasse\": \"pass123\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Connexion commerçant réussie\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Rôle COMMERCANT et token présents\", function () {",
+                  "    pm.expect(jsonData.role).to.eql(\"COMMERCANT\");",
+                  "    pm.expect(jsonData).to.have.property(\"token\");",
+                  "});",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set(\"commercant_token\", jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Lister mes produits",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/produits/mes-produits",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "produits",
+                "mes-produits"
+              ]
             },
+            "description": "Liste uniquement les produits du commerçant connecté (le commercantId est extrait du JWT).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Mes produits récupérés\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"La réponse est un tableau\", function () {",
+                  "    pm.expect(jsonData).to.be.an(\"array\");",
+                  "});",
+                  "if (Array.isArray(jsonData) && jsonData.length > 0) {",
+                  "    pm.collectionVariables.set(\"produit_id\", jsonData[0].id.toString());",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Créer un produit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": {
               "raw": "{{base_url}}/produits",
               "host": [
@@ -578,25 +745,45 @@
                 "produits"
               ]
             },
-            "description": "Crée un nouveau produit anti-gaspillage dans la base de données."
+            "description": "Crée un produit pour le commerce connecté. Le champ commercantId est ignoré : il est déduit du token COMMERCANT.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nom\": \"Panier Anti-Gaspillage Test\",\n  \"description\": \"Assortiment de viennoiseries et pâtisseries du jour\",\n  \"prix\": 8.5,\n  \"quantite\": 10,\n  \"imageUrl\": \"https://images.unsplash.com/photo-1555507036-ab1f4038808a\",\n  \"dateExpiration\": \"2026-12-31\",\n  \"disponibilite\": true\n}"
+            }
           },
-          "response": []
-        },
-        {
-          "name": "Modifier un produit",
+          "response": [],
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test(\"Statut HTTP 200 - Produit mis à jour\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});"
+                  "pm.test(\"Statut HTTP 201 - Produit créé\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Le produit contient un id et un nom\", function () {",
+                  "    pm.expect(jsonData).to.have.property(\"id\");",
+                  "    pm.expect(jsonData.nom).to.eql(\"Panier Anti-Gaspillage Test\");",
+                  "});",
+                  "pm.collectionVariables.set(\"produit_id\", jsonData.id.toString());"
                 ],
                 "type": "text/javascript"
               }
             }
-          ],
+          ]
+        },
+        {
+          "name": "4. Modifier mon produit",
           "request": {
             "method": "PUT",
             "header": [
@@ -605,55 +792,930 @@
                 "value": "application/json"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"nom\": \"Panier Viennoiseries Gourmand (Modifié)\",\n  \"description\": \"5 croissants et 3 pains au chocolat frais\",\n  \"prix\": 6.000,\n  \"quantite\": 12,\n  \"imageUrl\": \"https://example.com/images/viennoiseries.jpg\",\n  \"dateExpiration\": \"2026-11-02\",\n  \"disponibilite\": true,\n  \"commercantId\": 2\n}"
-            },
             "url": {
-              "raw": "{{base_url}}/produits/1",
+              "raw": "{{base_url}}/produits/{{produit_id}}",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "produits",
-                "1"
+                "{{produit_id}}"
               ]
             },
-            "description": "Met à jour les informations d'un produit existant."
+            "description": "Mise à jour partielle : seuls les champs envoyés sont modifiés. Le commerçant ne peut modifier que ses propres produits.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nom\": \"Panier Anti-Gaspillage Premium\",\n  \"description\": \"Sélection gourmande mise à jour\",\n  \"prix\": 9.9,\n  \"quantite\": 12,\n  \"disponibilite\": true\n}"
+            }
           },
-          "response": []
-        },
-        {
-          "name": "Supprimer un produit",
+          "response": [],
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test(\"Statut HTTP 204 - Suppression réussie\", function () {",
+                  "pm.test(\"Statut HTTP 200 - Produit modifié\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Le nom a bien été mis à jour\", function () {",
+                  "    pm.expect(jsonData.nom).to.eql(\"Panier Anti-Gaspillage Premium\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Changer la disponibilité",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/produits/{{produit_id}}/disponibilite",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "produits",
+                "{{produit_id}}",
+                "disponibilite"
+              ]
+            },
+            "description": "Active ou désactive rapidement un produit sans renvoyer tout l'objet.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"disponibilite\": false\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Disponibilité mise à jour\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Le produit est maintenant indisponible\", function () {",
+                  "    pm.expect(pm.response.json().disponibilite).to.eql(false);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Mettre à jour le stock",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/produits/{{produit_id}}/stock",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "produits",
+                "{{produit_id}}",
+                "stock"
+              ]
+            },
+            "description": "Met à jour uniquement la quantité en stock du produit.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantite\": 20\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Stock mis à jour\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"La quantité est maintenant 20\", function () {",
+                  "    pm.expect(pm.response.json().quantite).to.eql(20);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. Uploader une image Cloudinary",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/produits/images",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "produits",
+                "images"
+              ]
+            },
+            "description": "Envoie une image (data URI base64 ou URL http(s)) vers Cloudinary et retourne imageUrl + publicId. Nécessite les variables d'environnement CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY et CLOUDINARY_API_SECRET. L'exemple utilise une image PNG 1x1 pour tester le flux.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"image\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=\",\n  \"folder\": \"onemorebite/produits\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 201 - Image uploadée sur Cloudinary\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"imageUrl et publicId retournés\", function () {",
+                  "    pm.expect(jsonData).to.have.property(\"imageUrl\");",
+                  "    pm.expect(jsonData).to.have.property(\"publicId\");",
+                  "});",
+                  "if (jsonData.imageUrl) {",
+                  "    pm.collectionVariables.set(\"image_url\", jsonData.imageUrl);",
+                  "    pm.collectionVariables.set(\"image_public_id\", jsonData.publicId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "8. Associer l'image Cloudinary au produit",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/produits/{{produit_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "produits",
+                "{{produit_id}}"
+              ]
+            },
+            "description": "Enregistre l'URL Cloudinary retournée par l'upload dans le champ image_url du produit. Exécuter la requête 7 avant celle-ci.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageUrl\": \"{{image_url}}\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Image associée au produit\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"imageUrl correspond à l'image uploadée\", function () {",
+                  "    pm.expect(jsonData.imageUrl).to.eql(pm.collectionVariables.get(\"image_url\"));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "9. Supprimer mon produit",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/produits/{{produit_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "produits",
+                "{{produit_id}}"
+              ]
+            },
+            "description": "Supprime le produit créé. Un commerçant ne peut supprimer que ses propres produits.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 204 - Produit supprimé\", function () {",
                   "    pm.response.to.have.status(204);",
                   "});"
                 ],
                 "type": "text/javascript"
               }
             }
-          ],
+          ]
+        },
+        {
+          "name": "10. Supprimer l'image Cloudinary (optionnel)",
           "request": {
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/produits/2",
+              "raw": "{{base_url}}/produits/images?publicId={{image_public_id}}",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "produits",
-                "2"
+                "images"
+              ],
+              "query": [
+                {
+                  "key": "publicId",
+                  "value": "{{image_public_id}}"
+                }
               ]
             },
-            "description": "Supprime un produit par son ID."
+            "description": "Supprime l'image précédemment uploadée via son publicId Cloudinary. Exécuter après la suppression du produit.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            }
           },
-          "response": []
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Image supprimée de Cloudinary\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Cloudinary confirme la suppression\", function () {",
+                  "    pm.expect([\"ok\", \"not found\"]).to.include(pm.response.json().resultat);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sécurité: créer un produit sans token (401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/produits",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "produits"
+              ]
+            },
+            "description": "Vérifie que la création de produit est protégée par un token COMMERCANT ou ADMIN.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nom\": \"Produit non autorisé\",\n  \"prix\": 1,\n  \"quantite\": 1\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 401 - Création refusée sans authentification\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Gestion Produits (Admin)",
+      "item": [
+        {
+          "name": "1. Login Admin (prérequis)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Connexion administrateur. Le token est enregistré dans {{admin_token}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@enicar.com\",\n  \"motDePasse\": \"admin\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Connexion admin réussie\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Rôle ADMIN et token présents\", function () {",
+                  "    pm.expect(jsonData.role).to.eql(\"ADMIN\");",
+                  "    pm.expect(jsonData).to.have.property(\"token\");",
+                  "});",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set(\"admin_token\", jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Lister tous les produits (filtres admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/produits",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "produits"
+              ],
+              "query": [
+                {
+                  "key": "commercantId",
+                  "value": "2",
+                  "disabled": true
+                },
+                {
+                  "key": "disponible",
+                  "value": "true",
+                  "disabled": true
+                },
+                {
+                  "key": "recherche",
+                  "value": "panier",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Liste tous les produits de la plateforme. Filtres optionnels : commercantId, disponible, recherche.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Produits récupérés\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"La réponse est un tableau\", function () {",
+                  "    pm.expect(pm.response.json()).to.be.an(\"array\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Obtenir un produit par ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/produits/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "produits",
+                "1"
+              ]
+            },
+            "description": "Accès administrateur au détail de n'importe quel produit.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Produit récupéré\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Contient un id\", function () {",
+                  "    pm.expect(pm.response.json()).to.have.property(\"id\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Créer un produit pour un commerçant",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/produits",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "produits"
+              ]
+            },
+            "description": "Un administrateur peut créer un produit pour le compte d'un commerçant. Le champ commercantId est obligatoire.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nom\": \"Produit Créé Par Admin\",\n  \"description\": \"Produit de démonstration créé par l'administrateur\",\n  \"prix\": 15,\n  \"quantite\": 5,\n  \"imageUrl\": \"https://images.unsplash.com/photo-1509440159596-0249088772ff\",\n  \"dateExpiration\": \"2026-12-31\",\n  \"disponibilite\": true,\n  \"commercantId\": 2\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 201 - Produit créé par l'admin\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Produit rattaché au commercantId demandé\", function () {",
+                  "    pm.expect(jsonData.commercantId).to.eql(2);",
+                  "});",
+                  "pm.collectionVariables.set(\"admin_produit_id\", jsonData.id.toString());"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Modifier un produit (modération)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/produits/{{admin_produit_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "produits",
+                "{{admin_produit_id}}"
+              ]
+            },
+            "description": "L'administrateur peut modifier tout produit pour la modération.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nom\": \"Produit Créé Par Admin (Modéré)\",\n  \"description\": \"Contenu vérifié et modifié par l'administrateur\",\n  \"prix\": 14.5,\n  \"quantite\": 8,\n  \"disponibilite\": true\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Produit modéré\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Le nom a été modifié\", function () {",
+                  "    pm.expect(pm.response.json().nom).to.eql(\"Produit Créé Par Admin (Modéré)\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Changer la disponibilité (modération)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/produits/{{admin_produit_id}}/disponibilite",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "produits",
+                "{{admin_produit_id}}",
+                "disponibilite"
+              ]
+            },
+            "description": "L'administrateur peut masquer un produit en le rendant indisponible.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"disponibilite\": false\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Disponibilité mise à jour\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Le produit est indisponible\", function () {",
+                  "    pm.expect(pm.response.json().disponibilite).to.eql(false);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. Mettre à jour le stock (modération)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/produits/{{admin_produit_id}}/stock",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "produits",
+                "{{admin_produit_id}}",
+                "stock"
+              ]
+            },
+            "description": "L'administrateur peut corriger le stock d'un produit.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantite\": 30\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Stock mis à jour\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"La quantité est maintenant 30\", function () {",
+                  "    pm.expect(pm.response.json().quantite).to.eql(30);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "8. Statistiques produits",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/produits/statistiques",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "produits",
+                "statistiques"
+              ]
+            },
+            "description": "Retourne les indicateurs de gestion : total, disponibles, indisponibles, ruptures, quantité totale et valeur du stock.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Statistiques récupérées\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Contient les indicateurs attendus\", function () {",
+                  "    pm.expect(jsonData).to.have.property(\"totalProduits\");",
+                  "    pm.expect(jsonData).to.have.property(\"produitsDisponibles\");",
+                  "    pm.expect(jsonData).to.have.property(\"produitsIndisponibles\");",
+                  "    pm.expect(jsonData).to.have.property(\"produitsEnRupture\");",
+                  "    pm.expect(jsonData).to.have.property(\"quantiteTotale\");",
+                  "    pm.expect(jsonData).to.have.property(\"valeurStock\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "9. Supprimer un produit (modération)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/produits/{{admin_produit_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "produits",
+                "{{admin_produit_id}}"
+              ]
+            },
+            "description": "L'administrateur peut supprimer définitivement un produit non conforme.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 204 - Produit supprimé\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sécurité: route commerçant avec token admin (403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/produits/mes-produits",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "produits",
+                "mes-produits"
+              ]
+            },
+            "description": "Vérifie qu'un administrateur ne peut pas utiliser la route réservée aux commerçants (séparation des rôles). Utilise uniquement {{admin_token}}, donc ce test est autonome.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 403 - Route commerçant refusée à l'admin\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         }
       ]
     }

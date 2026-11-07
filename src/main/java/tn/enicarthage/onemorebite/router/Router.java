@@ -6,15 +6,21 @@ import tn.enicarthage.onemorebite.controller.AuthController;
 import tn.enicarthage.onemorebite.controller.CommercantController;
 import tn.enicarthage.onemorebite.controller.ProduitController;
 import tn.enicarthage.onemorebite.dto.CommercantRegisterRequest;
+import tn.enicarthage.onemorebite.dto.ImageUploadRequest;
 import tn.enicarthage.onemorebite.dto.LoginRequest;
+import tn.enicarthage.onemorebite.dto.ProduitDisponibiliteRequest;
 import tn.enicarthage.onemorebite.dto.ProduitRequest;
+import tn.enicarthage.onemorebite.dto.ProduitStockRequest;
 import tn.enicarthage.onemorebite.exception.AuthenticationException;
+import tn.enicarthage.onemorebite.exception.ForbiddenException;
 import tn.enicarthage.onemorebite.exception.ResourceNotFoundException;
+import tn.enicarthage.onemorebite.exception.ServiceUnavailableException;
 import tn.enicarthage.onemorebite.security.JwtUtil;
 import tn.enicarthage.onemorebite.service.AuthService;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -44,7 +50,7 @@ public class Router {
     public void dispatcher(HttpExchange exchange) throws IOException {
         // En-têtes CORS universels pour intégration web / frontend
         exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
-        exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
         exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
         if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
@@ -62,10 +68,14 @@ public class Router {
             envoyer(exchange, reponse.statut(), reponse.corps());
         } catch (AuthenticationException e) {
             envoyer(exchange, 401, messageErreur(e.getMessage()));
+        } catch (ForbiddenException e) {
+            envoyer(exchange, 403, messageErreur(e.getMessage()));
         } catch (ResourceNotFoundException e) {
             envoyer(exchange, 404, messageErreur(e.getMessage()));
         } catch (IllegalArgumentException e) {
             envoyer(exchange, 400, messageErreur(e.getMessage()));
+        } catch (ServiceUnavailableException e) {
+            envoyer(exchange, 503, messageErreur(e.getMessage()));
         } catch (Exception e) {
             envoyer(exchange, 500, messageErreur(e.getMessage()));
         }
@@ -150,7 +160,7 @@ public class Router {
         }
 
         // Toutes les autres routes sous /admin nécessitent un token ADMIN valide
-        exigerTokenAdmin(exchange);
+        JwtUtil.JwtClaims adminClaims = exigerTokenAdmin(exchange);
 
         if (segments.length >= 3 && "commercants".equalsIgnoreCase(segments[2])) {
             if (segments.length == 3) {
@@ -188,7 +198,81 @@ public class Router {
             }
         }
 
+        if (segments.length >= 3 && "produits".equalsIgnoreCase(segments[2])) {
+            return routesAdminProduit(methode, segments, exchange, adminClaims);
+        }
+
         throw new ResourceNotFoundException("Route admin inconnue.");
+    }
+
+    private Reponse routesAdminProduit(String methode, String[] segments, HttpExchange exchange,
+                                       JwtUtil.JwtClaims adminClaims) throws IOException {
+        if (segments.length == 3) {
+            // GET /admin/produits?commercantId=2&disponible=true&recherche=panier
+            if ("GET".equalsIgnoreCase(methode)) {
+                return new Reponse(200, gson.toJson(
+                        produitController.lister(
+                                parseEntierOptionnel(extraireParametre(exchange.getRequestURI().getQuery(), "commercantId")),
+                                parseBooleenOptionnel(extraireParametre(exchange.getRequestURI().getQuery(), "disponible")),
+                                extraireParametre(exchange.getRequestURI().getQuery(), "recherche")
+                        )
+                ));
+            }
+            // POST /admin/produits : création pour le compte d'un commerçant (commercantId obligatoire)
+            if ("POST".equalsIgnoreCase(methode)) {
+                ProduitRequest request = lireCorps(exchange, ProduitRequest.class);
+                return new Reponse(201, gson.toJson(produitController.creer(request, adminClaims)));
+            }
+            throw new IllegalArgumentException("Méthode non supportée: " + methode);
+        }
+
+        if (segments.length == 4) {
+            String action = segments[3];
+
+            if ("statistiques".equalsIgnoreCase(action) || "stats".equalsIgnoreCase(action)) {
+                if (!"GET".equalsIgnoreCase(methode)) {
+                    throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                }
+                return new Reponse(200, gson.toJson(produitController.statistiques()));
+            }
+
+            int id = parseId(action);
+            return switch (methode.toUpperCase()) {
+                case "GET" -> new Reponse(200, gson.toJson(produitController.obtenir(id)));
+                case "PUT", "PATCH" -> {
+                    ProduitRequest request = lireCorps(exchange, ProduitRequest.class);
+                    yield new Reponse(200, gson.toJson(produitController.modifier(id, request, adminClaims)));
+                }
+                case "DELETE" -> {
+                    produitController.supprimer(id, adminClaims);
+                    yield new Reponse(204, "");
+                }
+                default -> throw new IllegalArgumentException("Méthode non supportée: " + methode);
+            };
+        }
+
+        if (segments.length == 5) {
+            int id = parseId(segments[3]);
+            String action = segments[4];
+            if (!"PUT".equalsIgnoreCase(methode) && !"PATCH".equalsIgnoreCase(methode)) {
+                throw new IllegalArgumentException("Méthode non supportée: " + methode);
+            }
+            return switch (action) {
+                case "disponibilite" -> {
+                    ProduitDisponibiliteRequest request = lireCorps(exchange, ProduitDisponibiliteRequest.class);
+                    yield new Reponse(200, gson.toJson(
+                            produitController.changerDisponibilite(id, request.disponibilite(), adminClaims)));
+                }
+                case "stock" -> {
+                    ProduitStockRequest request = lireCorps(exchange, ProduitStockRequest.class);
+                    yield new Reponse(200, gson.toJson(
+                            produitController.changerStock(id, request.quantite(), adminClaims)));
+                }
+                default -> throw new ResourceNotFoundException("Action admin produit inconnue: " + action);
+            };
+        }
+
+        throw new ResourceNotFoundException("Route admin produit inconnue.");
     }
 
     private Reponse routesCommercantPublic(String methode, String[] segments, HttpExchange exchange) throws IOException {
@@ -221,36 +305,112 @@ public class Router {
 
     private Reponse routesProduit(String methode, String[] segments, HttpExchange exchange) throws IOException {
         if (segments.length == 2) {
-            return switch (methode) {
-                case "GET" -> new Reponse(200, gson.toJson(produitController.lister()));
+            return switch (methode.toUpperCase()) {
+                case "GET" -> new Reponse(200, gson.toJson(
+                        produitController.lister(
+                                parseEntierOptionnel(extraireParametre(exchange.getRequestURI().getQuery(), "commercantId")),
+                                parseBooleenOptionnel(extraireParametre(exchange.getRequestURI().getQuery(), "disponible")),
+                                extraireParametre(exchange.getRequestURI().getQuery(), "recherche")
+                        )
+                ));
                 case "POST" -> {
+                    JwtUtil.JwtClaims claims = exigerTokenGestion(exchange);
                     ProduitRequest request = lireCorps(exchange, ProduitRequest.class);
-                    yield new Reponse(201, gson.toJson(produitController.creer(request)));
+                    yield new Reponse(201, gson.toJson(produitController.creer(request, claims)));
                 }
                 default -> throw new IllegalArgumentException("Méthode non supportée: " + methode);
             };
-        } else if (segments.length == 3) {
-            int id = parseId(segments[2]);
-            return switch (methode) {
+        }
+
+        if (segments.length == 3) {
+            String action = segments[2];
+
+            if ("mes-produits".equalsIgnoreCase(action) || "mes".equalsIgnoreCase(action)) {
+                if (!"GET".equalsIgnoreCase(methode)) {
+                    throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                }
+                JwtUtil.JwtClaims claims = exigerTokenCommercant(exchange);
+                return new Reponse(200, gson.toJson(produitController.listerMesProduits(claims)));
+            }
+
+            if ("images".equalsIgnoreCase(action)) {
+                if ("POST".equalsIgnoreCase(methode)) {
+                    exigerTokenGestion(exchange);
+                    ImageUploadRequest request = lireCorps(exchange, ImageUploadRequest.class);
+                    return new Reponse(201, gson.toJson(produitController.televerserImage(request)));
+                }
+                if ("DELETE".equalsIgnoreCase(methode)) {
+                    exigerTokenGestion(exchange);
+                    String publicId = extraireParametre(exchange.getRequestURI().getQuery(), "publicId");
+                    if (publicId == null || publicId.isBlank()) {
+                        throw new IllegalArgumentException("Le paramètre 'publicId' est obligatoire.");
+                    }
+                    return new Reponse(200, gson.toJson(produitController.supprimerImage(publicId)));
+                }
+                throw new IllegalArgumentException("Méthode non supportée: " + methode);
+            }
+
+            int id = parseId(action);
+            return switch (methode.toUpperCase()) {
                 case "GET" -> new Reponse(200, gson.toJson(produitController.obtenir(id)));
-                case "PUT" -> {
+                case "PUT", "PATCH" -> {
+                    JwtUtil.JwtClaims claims = exigerTokenGestion(exchange);
                     ProduitRequest request = lireCorps(exchange, ProduitRequest.class);
-                    yield new Reponse(200, gson.toJson(produitController.modifier(id, request)));
+                    yield new Reponse(200, gson.toJson(produitController.modifier(id, request, claims)));
                 }
                 case "DELETE" -> {
-                    produitController.supprimer(id);
+                    JwtUtil.JwtClaims claims = exigerTokenGestion(exchange);
+                    produitController.supprimer(id, claims);
                     yield new Reponse(204, "");
                 }
                 default -> throw new IllegalArgumentException("Méthode non supportée: " + methode);
             };
         }
+
+        if (segments.length == 4) {
+            int id = parseId(segments[2]);
+            String action = segments[3];
+            if (!"PUT".equalsIgnoreCase(methode) && !"PATCH".equalsIgnoreCase(methode)) {
+                throw new IllegalArgumentException("Méthode non supportée: " + methode);
+            }
+
+            JwtUtil.JwtClaims claims = exigerTokenGestion(exchange);
+            return switch (action) {
+                case "disponibilite" -> {
+                    ProduitDisponibiliteRequest request = lireCorps(exchange, ProduitDisponibiliteRequest.class);
+                    yield new Reponse(200, gson.toJson(
+                            produitController.changerDisponibilite(id, request.disponibilite(), claims)));
+                }
+                case "stock" -> {
+                    ProduitStockRequest request = lireCorps(exchange, ProduitStockRequest.class);
+                    yield new Reponse(200, gson.toJson(
+                            produitController.changerStock(id, request.quantite(), claims)));
+                }
+                default -> throw new ResourceNotFoundException("Action produit inconnue: " + action);
+            };
+        }
+
         throw new ResourceNotFoundException("Route inconnue.");
     }
 
-    private void exigerTokenAdmin(HttpExchange exchange) {
+    private JwtUtil.JwtClaims exigerTokenAdmin(HttpExchange exchange) {
         String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
         String token = authService.extraireToken(authHeader);
-        jwtUtil.validerTokenAdmin(token);
+        return jwtUtil.validerTokenAdmin(token);
+    }
+
+    private JwtUtil.JwtClaims exigerTokenGestion(HttpExchange exchange) {
+        String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
+        String token = authService.extraireToken(authHeader);
+        return jwtUtil.validerTokenCommercant(token);
+    }
+
+    private JwtUtil.JwtClaims exigerTokenCommercant(HttpExchange exchange) {
+        JwtUtil.JwtClaims claims = exigerTokenGestion(exchange);
+        if (!"COMMERCANT".equalsIgnoreCase(claims.role())) {
+            throw new ForbiddenException("Cette action est réservée aux commerçants.");
+        }
+        return claims;
     }
 
     private String extraireParametre(String query, String paramName) {
@@ -258,12 +418,42 @@ public class Router {
             return null;
         }
         for (String pair : query.split("&")) {
-            String[] parts = pair.split("=");
-            if (parts.length == 2 && parts[0].equalsIgnoreCase(paramName)) {
-                return parts[1];
+            String[] parts = pair.split("=", 2);
+            if (parts.length == 2 && decoder(parts[0]).equalsIgnoreCase(paramName)) {
+                return decoder(parts[1]);
             }
         }
         return null;
+    }
+
+    private String decoder(String valeur) {
+        try {
+            return URLDecoder.decode(valeur, StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            return valeur;
+        }
+    }
+
+    private Integer parseEntierOptionnel(String valeur) {
+        if (valeur == null || valeur.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(valeur.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Paramètre entier invalide: " + valeur);
+        }
+    }
+
+    private Boolean parseBooleenOptionnel(String valeur) {
+        if (valeur == null || valeur.isBlank()) {
+            return null;
+        }
+        return switch (valeur.trim().toLowerCase()) {
+            case "true", "1", "oui", "yes" -> true;
+            case "false", "0", "non", "no" -> false;
+            default -> throw new IllegalArgumentException("Paramètre booléen invalide: " + valeur);
+        };
     }
 
     private <T> T lireCorps(HttpExchange exchange, Class<T> clazz) throws IOException {

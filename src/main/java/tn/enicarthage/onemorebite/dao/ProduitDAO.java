@@ -1,6 +1,7 @@
 package tn.enicarthage.onemorebite.dao;
 
 import tn.enicarthage.onemorebite.config.DatabaseConnection;
+import tn.enicarthage.onemorebite.dto.ProduitStatistiques;
 import tn.enicarthage.onemorebite.model.Produit;
 
 import java.sql.*;
@@ -11,20 +12,53 @@ import java.util.Optional;
 public class ProduitDAO {
 
     public List<Produit> listerTous() {
+        return listerAvecFiltres(null, null, null);
+    }
+
+    /**
+     * Liste les produits avec filtres optionnels : commerçant, disponibilité et recherche textuelle.
+     */
+    public List<Produit> listerAvecFiltres(Integer commercantId, Boolean disponibilite, String recherche) {
         List<Produit> produits = new ArrayList<>();
-        String sql = "SELECT * FROM produit ORDER BY id DESC";
+        StringBuilder sql = new StringBuilder("SELECT * FROM produit WHERE 1 = 1");
+        List<Object> parametres = new ArrayList<>();
+
+        if (commercantId != null) {
+            sql.append(" AND commercant_id = ?");
+            parametres.add(commercantId);
+        }
+        if (disponibilite != null) {
+            sql.append(" AND disponibilite = ?");
+            parametres.add(disponibilite);
+        }
+        if (recherche != null && !recherche.isBlank()) {
+            sql.append(" AND (nom LIKE ? OR description LIKE ?)");
+            String motif = "%" + recherche.trim() + "%";
+            parametres.add(motif);
+            parametres.add(motif);
+        }
+        sql.append(" ORDER BY id DESC");
 
         try (Connection conn = DatabaseConnection.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+             PreparedStatement stmt = conn.prepareStatement(sql.toString())) {
 
-            while (rs.next()) {
-                produits.add(mapResultSet(rs));
+            for (int i = 0; i < parametres.size(); i++) {
+                stmt.setObject(i + 1, parametres.get(i));
+            }
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    produits.add(mapResultSet(rs));
+                }
             }
         } catch (SQLException e) {
             e.printStackTrace();
         }
         return produits;
+    }
+
+    public List<Produit> listerParCommercant(int commercantId) {
+        return listerAvecFiltres(commercantId, null, null);
     }
 
     public Optional<Produit> trouverParId(int id) {
@@ -67,10 +101,10 @@ public class ProduitDAO {
                     p.setId(generatedKeys.getInt(1));
                 }
             }
+            return p;
         } catch (SQLException e) {
-            e.printStackTrace();
+            throw new RuntimeException("Erreur lors de la création du produit : " + e.getMessage(), e);
         }
-        return p;
     }
 
     public boolean modifier(Produit p) {
@@ -97,6 +131,34 @@ public class ProduitDAO {
         }
     }
 
+    public boolean modifierDisponibilite(int id, boolean disponibilite) {
+        String sql = "UPDATE produit SET disponibilite = ? WHERE id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setBoolean(1, disponibilite);
+            stmt.setInt(2, id);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public boolean modifierStock(int id, int quantite) {
+        String sql = "UPDATE produit SET quantite = ? WHERE id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, quantite);
+            stmt.setInt(2, id);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
     public boolean supprimer(int id) {
         String sql = "DELETE FROM produit WHERE id = ?";
         try (Connection conn = DatabaseConnection.getConnection();
@@ -108,6 +170,35 @@ public class ProduitDAO {
             e.printStackTrace();
             return false;
         }
+    }
+
+    public ProduitStatistiques statistiques() {
+        String sql = "SELECT COUNT(*) AS total, " +
+                "COALESCE(SUM(CASE WHEN disponibilite = TRUE THEN 1 ELSE 0 END), 0) AS disponibles, " +
+                "COALESCE(SUM(CASE WHEN disponibilite = FALSE THEN 1 ELSE 0 END), 0) AS indisponibles, " +
+                "COALESCE(SUM(CASE WHEN quantite = 0 THEN 1 ELSE 0 END), 0) AS rupture, " +
+                "COALESCE(SUM(quantite), 0) AS quantite_totale, " +
+                "COALESCE(SUM(prix * quantite), 0) AS valeur_stock " +
+                "FROM produit";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            if (rs.next()) {
+                return new ProduitStatistiques(
+                        rs.getLong("total"),
+                        rs.getLong("disponibles"),
+                        rs.getLong("indisponibles"),
+                        rs.getLong("rupture"),
+                        rs.getLong("quantite_totale"),
+                        rs.getDouble("valeur_stock")
+                );
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return new ProduitStatistiques(0, 0, 0, 0, 0, 0);
     }
 
     private Produit mapResultSet(ResultSet rs) throws SQLException {
