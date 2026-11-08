@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "9b12a84d-28e6-42d4-a1e9-9a28e3b1f5d2",
     "name": "OneMoreBite API",
-    "description": "Collection complète des routes OneMoreBite :\n1. Authentification Admin & Commerçant avec JWT et BCrypt\n2. Cycle de vie Commerçant (Inscription EN_ATTENTE -> Validation Admin ACTIF / REJETE)\n3. Consultation publique des Produits\n4. Gestion des Produits par le Commerçant (CRUD, stock, disponibilité, images Cloudinary)\n5. Gestion et modération des Produits par l'Admin (CRUD, statistiques, images Cloudinary)",
+    "description": "Collection complète des routes OneMoreBite :\n1. Authentification Admin & Commerçant avec JWT et BCrypt\n2. Cycle de vie Commerçant (Inscription EN_ATTENTE -> Validation Admin ACTIF / REJETE)\n3. Consultation publique des Produits\n4. Gestion des Produits par le Commerçant (CRUD, stock, disponibilité, images Cloudinary)\n5. Gestion et modération des Produits par l'Admin (CRUD, statistiques, images Cloudinary)\n6. Authentification Client (inscription, connexion, session, déconnexion et contrôles de rôle)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -44,6 +44,31 @@
     {
       "key": "image_public_id",
       "value": "",
+      "type": "string"
+    },
+    {
+      "key": "client_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "client_token_revoked",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "client_email",
+      "value": "sami@gmail.com",
+      "type": "string"
+    },
+    {
+      "key": "client_password",
+      "value": "client123",
+      "type": "string"
+    },
+    {
+      "key": "client_id",
+      "value": "3",
       "type": "string"
     }
   ],
@@ -199,6 +224,1128 @@
             "description": "Invalide le token JWT côté serveur via la liste de révocation."
           },
           "response": []
+        },
+        {
+          "name": "Client - Inscription (POST /auth/client/register)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Email unique pour permettre de rejouer la collection sans conflit",
+                  "pm.collectionVariables.set(\"client_email\", \"client.\" + Date.now() + \"@example.com\");",
+                  "pm.collectionVariables.set(\"client_password\", \"clientPass123\");"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 201 - Client créé\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Rôle CLIENT attribué et aucun mot de passe renvoyé\", function () {",
+                  "    pm.expect(jsonData.role).to.eql(\"CLIENT\");",
+                  "    pm.expect(jsonData).to.not.have.property(\"motDePasse\");",
+                  "    pm.expect(jsonData).to.not.have.property(\"password\");",
+                  "});",
+                  "",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set(\"client_id\", jsonData.id.toString());",
+                  "    pm.collectionVariables.set(\"client_email\", jsonData.email);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nom\": \"Amine Ben Salah\",\n  \"email\": \"{{client_email}}\",\n  \"motDePasse\": \"{{client_password}}\",\n  \"telephone\": \"20123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/client/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "client",
+                "register"
+              ]
+            },
+            "description": "Inscription d'un nouveau client. Le rôle CLIENT est imposé côté serveur (aucun champ de rôle accepté), le mot de passe est haché avec BCrypt et un email déjà utilisé est refusé (400)."
+          },
+          "response": [
+            {
+              "name": "201 - Client créé",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/auth/client/register",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "client",
+                    "register"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nom\": \"Amine Ben Salah\",\n  \"email\": \"amine.bensalah@example.com\",\n  \"motDePasse\": \"clientPass123\",\n  \"telephone\": \"20123456\"\n}"
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"id\": 7,\n  \"nom\": \"Amine Ben Salah\",\n  \"email\": \"amine.bensalah@example.com\",\n  \"telephone\": \"20123456\",\n  \"role\": \"CLIENT\"\n}"
+            },
+            {
+              "name": "400 - Email déjà utilisé",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/auth/client/register",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "client",
+                    "register"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nom\": \"Amine Ben Salah\",\n  \"email\": \"amine.bensalah@example.com\",\n  \"motDePasse\": \"clientPass123\",\n  \"telephone\": \"20123456\"\n}"
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"erreur\": \"Un compte avec cet email existe déjà.\"\n}"
+            },
+            {
+              "name": "400 - Email invalide",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/auth/client/register",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "client",
+                    "register"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nom\": \"Amine Ben Salah\",\n  \"email\": \"email-invalide\",\n  \"motDePasse\": \"clientPass123\"\n}"
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"erreur\": \"Le format de l'email est invalide.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Client - Inscription email existant (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nom\": \"Doublon Client\",\n  \"email\": \"{{client_email}}\",\n  \"motDePasse\": \"clientPass123\",\n  \"telephone\": \"20123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/client/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "client",
+                "register"
+              ]
+            },
+            "description": "Tente de réinscrire le client créé précédemment avec le même email. Exécuter après l'inscription. La réponse attendue est 400."
+          },
+          "response": [
+            {
+              "name": "400 - Email déjà utilisé",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/auth/client/register",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "client",
+                    "register"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nom\": \"Doublon Client\",\n  \"email\": \"amine.bensalah@example.com\",\n  \"motDePasse\": \"clientPass123\"\n}"
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"erreur\": \"Un compte avec cet email existe déjà.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Client - Inscription données invalides (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nom\": \"Client Sans Email Valide\",\n  \"email\": \"pas-un-email\",\n  \"motDePasse\": \"\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/client/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "client",
+                "register"
+              ]
+            },
+            "description": "Validation serveur : email mal formé et mot de passe vide. La réponse attendue est 400 avec un message explicite."
+          },
+          "response": [
+            {
+              "name": "400 - Données invalides",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/auth/client/register",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "client",
+                    "register"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nom\": \"Client Sans Email Valide\",\n  \"email\": \"pas-un-email\",\n  \"motDePasse\": \"\"\n}"
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"erreur\": \"Le format de l'email est invalide.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Client - Connexion (POST /auth/client/login)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Connexion client réussie\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Token JWT et rôle CLIENT présents\", function () {",
+                  "    pm.expect(jsonData.role).to.eql(\"CLIENT\");",
+                  "    pm.expect(jsonData).to.have.property(\"token\");",
+                  "    pm.expect(jsonData).to.not.have.property(\"motDePasse\");",
+                  "});",
+                  "",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set(\"client_token\", jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{client_email}}\",\n  \"motDePasse\": \"{{client_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/client/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "client",
+                "login"
+              ]
+            },
+            "description": "Connexion d'un client avec son email et son mot de passe. Le token JWT est enregistré dans {{client_token}}. Les identifiants invalides renvoient 401."
+          },
+          "response": [
+            {
+              "name": "200 - Connexion réussie",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/auth/client/login",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "client",
+                    "login"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"amine.bensalah@example.com\",\n  \"motDePasse\": \"clientPass123\"\n}"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhbWluZS5iZW5zYWxhaEBleGFtcGxlLmNvbSIsImlkIjo3LCJub20iOiJBbWluZSBCZW4gU2FsYWgiLCJyb2xlIjoiQ0xJRU5UIiwiaWF0IjoxNzk0MDgyNjAxLCJleHAiOjE3OTQxNjkwMDF9.signature\",\n  \"type\": \"Bearer\",\n  \"id\": 7,\n  \"nom\": \"Amine Ben Salah\",\n  \"email\": \"amine.bensalah@example.com\",\n  \"role\": \"CLIENT\"\n}"
+            },
+            {
+              "name": "401 - Mot de passe incorrect",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/auth/client/login",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "client",
+                    "login"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"amine.bensalah@example.com\",\n  \"motDePasse\": \"mauvaisMotDePasse\"\n}"
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"erreur\": \"Identifiants invalides : Mot de passe incorrect.\"\n}"
+            },
+            {
+              "name": "401 - Email inconnu",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/auth/client/login",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "client",
+                    "login"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"inconnu@example.com\",\n  \"motDePasse\": \"clientPass123\"\n}"
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"erreur\": \"Identifiants invalides : Client introuvable ou accès non autorisé.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Client - Connexion mot de passe incorrect (401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{client_email}}\",\n  \"motDePasse\": \"motDePasseIncorrect\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/client/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "client",
+                "login"
+              ]
+            },
+            "description": "Tente une connexion avec un mot de passe erroné. La réponse attendue est 401."
+          },
+          "response": [
+            {
+              "name": "401 - Mot de passe incorrect",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/auth/client/login",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "client",
+                    "login"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"amine.bensalah@example.com\",\n  \"motDePasse\": \"motDePasseIncorrect\"\n}"
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"erreur\": \"Identifiants invalides : Mot de passe incorrect.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Client - Connexion email inconnu (401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"client.inconnu@example.com\",\n  \"motDePasse\": \"clientPass123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/client/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "client",
+                "login"
+              ]
+            },
+            "description": "Tente une connexion avec un email qui n'existe pas. La réponse attendue est 401."
+          },
+          "response": [
+            {
+              "name": "401 - Email inconnu",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/auth/client/login",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "client",
+                    "login"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"client.inconnu@example.com\",\n  \"motDePasse\": \"clientPass123\"\n}"
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"erreur\": \"Identifiants invalides : Client introuvable ou accès non autorisé.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Client - Accès protégé sans token (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Vérifie qu'un endpoint protégé refuse l'accès sans Bearer Token (401)."
+          },
+          "response": [
+            {
+              "name": "401 - Authentification requise",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/auth/me",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "me"
+                  ]
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"erreur\": \"En-tête Authorization manquant ou invalide.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Client - Vérifier la session (GET /auth/me)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Session client active\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Profil du client retourné\", function () {",
+                  "    pm.expect(jsonData.role).to.eql(\"CLIENT\");",
+                  "    pm.expect(jsonData).to.have.property(\"email\");",
+                  "    pm.expect(jsonData).to.not.have.property(\"motDePasse\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Endpoint protégé générique : renvoie le profil du client authentifié à partir du Bearer Token. Sans token ou avec un token révoqué, la réponse est 401."
+          },
+          "response": [
+            {
+              "name": "200 - Session valide",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/auth/me",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "me"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{client_token}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"id\": 7,\n  \"nom\": \"Amine Ben Salah\",\n  \"email\": \"amine.bensalah@example.com\",\n  \"telephone\": \"20123456\",\n  \"role\": \"CLIENT\"\n}"
+            },
+            {
+              "name": "401 - Token absent ou invalide",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/auth/me",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "me"
+                  ]
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"erreur\": \"En-tête Authorization manquant ou invalide.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Client - Accès endpoint Admin refusé (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 403 - Un client ne peut pas accéder aux routes admin\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/commercants",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "commercants"
+              ]
+            },
+            "description": "Contrôle de rôle : un token CLIENT est refusé (403) sur les routes réservées à l'administrateur."
+          },
+          "response": [
+            {
+              "name": "403 - Rôle administrateur requis",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/admin/commercants",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "commercants"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{client_token}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"erreur\": \"Accès non autorisé : rôle administrateur requis.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Client - Accès endpoint Commerçant refusé (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 403 - Un client ne peut pas accéder aux routes commerçant\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/produits/mes-produits",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "produits",
+                "mes-produits"
+              ]
+            },
+            "description": "Contrôle de rôle : un token CLIENT est refusé (403) sur les routes réservées aux commerçants."
+          },
+          "response": [
+            {
+              "name": "403 - Compte commerçant requis",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/produits/mes-produits",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "produits",
+                    "mes-produits"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{client_token}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"erreur\": \"Accès non autorisé : compte commerçant requis.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Client - Déconnexion (POST /auth/logout)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Déconnexion client réussie\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Message de confirmation\", function () {",
+                  "    pm.expect(pm.response.json()).to.have.property(\"message\");",
+                  "});",
+                  "",
+                  "// Conserver le token révoqué pour vérifier son rejet, puis vider la session active",
+                  "pm.collectionVariables.set(\"client_token_revoked\", pm.collectionVariables.get(\"client_token\"));",
+                  "pm.collectionVariables.set(\"client_token\", \"\");"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/logout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Déconnexion : le token JWT du client est ajouté à la liste de révocation côté serveur. Le token devient immédiatement inutilisable sur tous les endpoints protégés."
+          },
+          "response": [
+            {
+              "name": "200 - Déconnexion réussie",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/auth/logout",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "logout"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{client_token}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"message\": \"Déconnexion réussie. La session a été invalidée.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Client - Token révoqué après déconnexion (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 401 - Le token déconnecté est rejeté\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test(\"Message de session révoquée\", function () {",
+                  "    pm.expect(pm.response.json().erreur).to.include(\"révoquée\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token_revoked}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Réutilise le token enregistré avant la déconnexion. Le serveur doit répondre 401 (session révoquée)."
+          },
+          "response": [
+            {
+              "name": "401 - Session révoquée",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/auth/me",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "me"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{client_token_revoked}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"erreur\": \"Session révoquée suite à une déconnexion. Veuillez vous reconnecter.\"\n}"
+            }
+          ]
         }
       ]
     },

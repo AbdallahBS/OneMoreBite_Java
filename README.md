@@ -4,7 +4,8 @@ API Java 17 (HTTP server natif) pour la gestion d'une plateforme anti-gaspillage
 
 ## Fonctionnalités
 
-- Authentification Admin & Commerçant avec JWT et BCrypt
+- Authentification Admin, Commerçant & Client avec JWT et BCrypt
+- Inscription, connexion, session et déconnexion des clients
 - Cycle de vie des commerçants : inscription `EN_ATTENTE` → validation admin `ACTIF` / `REJETE`
 - Gestion des produits par les commerçants : CRUD, stock, disponibilité, images Cloudinary
 - Gestion et modération des produits par l'administrateur : filtres, CRUD, statistiques
@@ -28,6 +29,7 @@ Comptes de démonstration (script SQL) :
 | --- | --- | --- |
 | Admin | `admin@enicar.com` | `admin` |
 | Commerçant | `contact@benali.tn` | `pass123` |
+| Client | `sami@gmail.com` | `client123` |
 
 ## Configuration Cloudinary
 
@@ -54,6 +56,16 @@ Ou via des propriétés système :
 Sans configuration, l'upload renvoie une erreur `503` avec un message explicite. Il reste possible de renseigner directement une URL Cloudinary (ou toute URL `https://`) dans le champ `imageUrl` d'un produit.
 
 ## Routes principales
+
+### Authentification
+
+| Méthode | Route | Description |
+| --- | --- | --- |
+| POST | `/auth/login` | Connexion Admin / Commerçant / Client |
+| POST | `/auth/client/register` | Inscription d'un client (rôle `CLIENT` imposé) |
+| POST | `/auth/client/login` | Connexion d'un client |
+| GET | `/auth/me` | Profil de la session courante (Bearer Token) |
+| POST | `/auth/logout` | Déconnexion et révocation du token JWT |
 
 ### Public
 
@@ -107,10 +119,10 @@ La réponse contient `imageUrl` et `publicId` ; l'`imageUrl` doit ensuite être 
 
 Importer `OneMoreBite.postman_collection.json`. La collection contient :
 
-1. Authentification & Sessions
+1. Authentification & Sessions (Admin, Commerçant, Client)
 2. Workflow Commerçants (inscription & validation admin)
 3. Produits (public)
 4. Gestion Produits (Commerçant)
 5. Gestion Produits (Admin)
 
-Les scripts de test enregistrent automatiquement les tokens et les identifiants de produits dans les variables de collection (`admin_token`, `commercant_token`, `produit_id`, `admin_produit_id`, `image_url`, `image_public_id`).
+Les scripts de test enregistrent automatiquement les tokens et les identifiants de produits dans les variables de collection (`admin_token`, `commercant_token`, `client_token`, `produit_id`, `admin_produit_id`, `image_url`, `image_public_id`).

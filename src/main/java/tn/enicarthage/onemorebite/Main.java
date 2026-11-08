@@ -28,9 +28,11 @@ public class Main {
             serveur.demarrer();
             System.out.println("Serveur HTTP démarré sur http://localhost:" + PORT);
             System.out.println("Endpoints disponibles :");
-            System.out.println("  POST http://localhost:" + PORT + "/auth/login                (Connexion Admin / Commerçant)");
+            System.out.println("  POST http://localhost:" + PORT + "/auth/login                (Connexion Admin / Commerçant / Client)");
             System.out.println("  GET  http://localhost:" + PORT + "/auth/me                   (Session profil - Bearer Token)");
             System.out.println("  POST http://localhost:" + PORT + "/auth/logout               (Déconnexion - Invalidation JWT)");
+            System.out.println("  POST http://localhost:" + PORT + "/auth/client/register       (Inscription client)");
+            System.out.println("  POST http://localhost:" + PORT + "/auth/client/login          (Connexion client)");
             System.out.println("  POST http://localhost:" + PORT + "/auth/commercant/register   (Inscription commerçant - EN_ATTENTE)");
             System.out.println("  POST http://localhost:" + PORT + "/auth/commercant/login      (Connexion commerçant)");
             System.out.println("  GET  http://localhost:" + PORT + "/admin/commercants         (Admin: Liste des commerçants ?statut=EN_ATTENTE)");

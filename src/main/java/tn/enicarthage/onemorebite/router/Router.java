@@ -3,8 +3,10 @@ package tn.enicarthage.onemorebite.router;
 import com.google.gson.*;
 import com.sun.net.httpserver.HttpExchange;
 import tn.enicarthage.onemorebite.controller.AuthController;
+import tn.enicarthage.onemorebite.controller.ClientController;
 import tn.enicarthage.onemorebite.controller.CommercantController;
 import tn.enicarthage.onemorebite.controller.ProduitController;
+import tn.enicarthage.onemorebite.dto.ClientRegisterRequest;
 import tn.enicarthage.onemorebite.dto.CommercantRegisterRequest;
 import tn.enicarthage.onemorebite.dto.ImageUploadRequest;
 import tn.enicarthage.onemorebite.dto.LoginRequest;
@@ -43,6 +45,7 @@ public class Router {
 
     private final ProduitController produitController = new ProduitController();
     private final AuthController authController = new AuthController();
+    private final ClientController clientController = new ClientController();
     private final CommercantController commercantController = new CommercantController();
     private final AuthService authService = new AuthService();
     private final JwtUtil jwtUtil = new JwtUtil();
@@ -77,7 +80,8 @@ public class Router {
         } catch (ServiceUnavailableException e) {
             envoyer(exchange, 503, messageErreur(e.getMessage()));
         } catch (Exception e) {
-            envoyer(exchange, 500, messageErreur(e.getMessage()));
+            e.printStackTrace();
+            envoyer(exchange, 500, messageErreur("Une erreur interne est survenue."));
         }
     }
 
@@ -140,6 +144,25 @@ public class Router {
                     yield new Reponse(200, gson.toJson(commercantController.login(req)));
                 }
                 default -> throw new ResourceNotFoundException("Action inconnue: /auth/commercant/" + subAction);
+            };
+        } else if (segments.length == 4 && "client".equalsIgnoreCase(segments[2])) {
+            String subAction = segments[3];
+            return switch (subAction) {
+                case "register", "inscription" -> {
+                    if (!"POST".equalsIgnoreCase(methode)) {
+                        throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                    }
+                    ClientRegisterRequest req = lireCorps(exchange, ClientRegisterRequest.class);
+                    yield new Reponse(201, gson.toJson(clientController.inscrire(req)));
+                }
+                case "login" -> {
+                    if (!"POST".equalsIgnoreCase(methode)) {
+                        throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                    }
+                    LoginRequest req = lireCorps(exchange, LoginRequest.class);
+                    yield new Reponse(200, gson.toJson(clientController.login(req)));
+                }
+                default -> throw new ResourceNotFoundException("Action inconnue: /auth/client/" + subAction);
             };
         }
         throw new ResourceNotFoundException("Route auth inconnue.");
@@ -458,7 +481,11 @@ public class Router {
 
     private <T> T lireCorps(HttpExchange exchange, Class<T> clazz) throws IOException {
         String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-        return gson.fromJson(body, clazz);
+        try {
+            return gson.fromJson(body, clazz);
+        } catch (JsonSyntaxException e) {
+            throw new IllegalArgumentException("Corps de requête JSON invalide.");
+        }
     }
 
     private int parseId(String val) {

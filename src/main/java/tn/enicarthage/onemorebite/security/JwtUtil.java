@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import tn.enicarthage.onemorebite.exception.AuthenticationException;
 import tn.enicarthage.onemorebite.exception.ForbiddenException;
 import tn.enicarthage.onemorebite.model.Administrateur;
+import tn.enicarthage.onemorebite.model.Client;
 import tn.enicarthage.onemorebite.model.Commercant;
 
 import javax.crypto.Mac;
@@ -21,13 +22,24 @@ import java.util.concurrent.ConcurrentHashMap;
 public class JwtUtil {
 
     private static final String HMAC_SHA256 = "HmacSHA256";
-    private static final String SECRET_KEY = "OneMoreBite_Enicar_Admin_Secure_Secret_Key_2026_JWT_Token_Auth";
+    private static final String SECRET_KEY = resolveSecretKey();
     private static final long EXPIRATION_SECONDS = 24 * 60 * 60; // 24 hours
 
     private final Gson gson = new Gson();
 
-    // Liste des tokens révoqués (Blacklist thread-safe pour le logout)
-    private final Set<String> tokensRevoques = ConcurrentHashMap.newKeySet();
+    // Blacklist partagée par toutes les instances (logout valable pour toute l'application)
+    private static final Set<String> tokensRevoques = ConcurrentHashMap.newKeySet();
+
+    private static String resolveSecretKey() {
+        String secret = System.getenv("JWT_SECRET");
+        if (secret == null || secret.isBlank()) {
+            secret = System.getProperty("jwt.secret");
+        }
+        if (secret == null || secret.isBlank()) {
+            secret = "OneMoreBite_Enicar_Admin_Secure_Secret_Key_2026_JWT_Token_Auth";
+        }
+        return secret;
+    }
 
     public record JwtClaims(
             int id,
@@ -71,6 +83,10 @@ public class JwtUtil {
         return genererToken(commercant.getId(), commercant.getEmail(), commercant.getNom(), "COMMERCANT");
     }
 
+    public String genererToken(Client client) {
+        return genererToken(client.getId(), client.getEmail(), client.getNom(), "CLIENT");
+    }
+
     public JwtClaims validerToken(String token) {
         if (token == null || token.isBlank()) {
             throw new AuthenticationException("Token manquant ou vide.");
@@ -107,7 +123,7 @@ public class JwtUtil {
 
         // 3. Vérification de l'expiration
         long now = Instant.now().getEpochSecond();
-        if (claims.exp() < now) {
+        if (claims.exp() <= now) {
             throw new AuthenticationException("Session expirée. Veuillez vous reconnecter.");
         }
 
@@ -126,6 +142,14 @@ public class JwtUtil {
         JwtClaims claims = validerToken(token);
         if (!"COMMERCANT".equalsIgnoreCase(claims.role()) && !"ADMIN".equalsIgnoreCase(claims.role())) {
             throw new ForbiddenException("Accès non autorisé : compte commerçant requis.");
+        }
+        return claims;
+    }
+
+    public JwtClaims validerTokenClient(String token) {
+        JwtClaims claims = validerToken(token);
+        if (!"CLIENT".equalsIgnoreCase(claims.role())) {
+            throw new ForbiddenException("Accès non autorisé : compte client requis.");
         }
         return claims;
     }

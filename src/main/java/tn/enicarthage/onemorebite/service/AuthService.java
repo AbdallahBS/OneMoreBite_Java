@@ -1,13 +1,16 @@
 package tn.enicarthage.onemorebite.service;
 
 import tn.enicarthage.onemorebite.dao.AdministrateurDAO;
+import tn.enicarthage.onemorebite.dao.ClientDAO;
 import tn.enicarthage.onemorebite.dao.CommercantDAO;
 import tn.enicarthage.onemorebite.dto.AdminResponse;
+import tn.enicarthage.onemorebite.dto.ClientResponse;
 import tn.enicarthage.onemorebite.dto.CommercantResponse;
 import tn.enicarthage.onemorebite.dto.LoginRequest;
 import tn.enicarthage.onemorebite.dto.LoginResponse;
 import tn.enicarthage.onemorebite.exception.AuthenticationException;
 import tn.enicarthage.onemorebite.model.Administrateur;
+import tn.enicarthage.onemorebite.model.Client;
 import tn.enicarthage.onemorebite.model.Commercant;
 import tn.enicarthage.onemorebite.security.JwtUtil;
 import tn.enicarthage.onemorebite.security.PasswordUtil;
@@ -21,6 +24,7 @@ public class AuthService {
 
     private final AdministrateurDAO administrateurDAO = new AdministrateurDAO();
     private final CommercantDAO commercantDAO = new CommercantDAO();
+    private final ClientDAO clientDAO = new ClientDAO();
     private final JwtUtil jwtUtil = new JwtUtil();
 
     public AuthService() {
@@ -91,6 +95,28 @@ public class AuthService {
             );
         }
 
+        Optional<Client> clientOpt = clientDAO.trouverParEmail(email);
+        if (clientOpt.isPresent()) {
+            Client client = clientOpt.get();
+            if (!PasswordUtil.verifier(password, client.getMotDePasse())) {
+                throw new AuthenticationException("Identifiants invalides : Mot de passe incorrect.");
+            }
+
+            if (!PasswordUtil.estHashBCrypt(client.getMotDePasse())) {
+                clientDAO.mettreAJourMotDePasse(client.getId(), PasswordUtil.hash(password));
+            }
+
+            String token = jwtUtil.genererToken(client);
+            return new LoginResponse(
+                    token,
+                    "Bearer",
+                    client.getId(),
+                    client.getNom(),
+                    client.getEmail(),
+                    "CLIENT"
+            );
+        }
+
         throw new AuthenticationException("Identifiants invalides : Utilisateur introuvable ou accès non autorisé.");
     }
 
@@ -109,6 +135,22 @@ public class AuthService {
                     c.getLocalisation(),
                     c.getStatut()
             );
+        }
+
+        if ("CLIENT".equalsIgnoreCase(claims.role())) {
+            Client client = clientDAO.trouverParId(claims.id())
+                    .orElseThrow(() -> new AuthenticationException("Session invalide : Client non trouvé."));
+            return new ClientResponse(
+                    client.getId(),
+                    client.getNom(),
+                    client.getEmail(),
+                    client.getTelephone(),
+                    "CLIENT"
+            );
+        }
+
+        if (!"ADMIN".equalsIgnoreCase(claims.role())) {
+            throw new AuthenticationException("Session invalide : rôle inconnu.");
         }
 
         Administrateur admin = administrateurDAO.trouverParId(claims.id())
