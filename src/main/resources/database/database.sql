@@ -56,7 +56,7 @@ CREATE TABLE commande (
                           id INT AUTO_INCREMENT PRIMARY KEY,
                           date_commande DATETIME DEFAULT CURRENT_TIMESTAMP,
                           quantite INT NOT NULL DEFAULT 1,
-                          statut ENUM('EN_ATTENTE', 'CONFIRMEE', 'ANNULEE') DEFAULT 'EN_ATTENTE',
+                          statut ENUM('EN_ATTENTE', 'CONFIRMEE', 'REFUSEE', 'ANNULEE') DEFAULT 'EN_ATTENTE',
                           produit_id INT NOT NULL,
                           client_id INT NULL,
                           nom_invite VARCHAR(100),

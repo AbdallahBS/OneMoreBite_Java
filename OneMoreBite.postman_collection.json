@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "9b12a84d-28e6-42d4-a1e9-9a28e3b1f5d2",
     "name": "OneMoreBite API",
-    "description": "Collection complète des routes OneMoreBite :\n1. Authentification Admin & Commerçant avec JWT et BCrypt\n2. Cycle de vie Commerçant (Inscription EN_ATTENTE -> Validation Admin ACTIF / REJETE)\n3. Consultation publique des Produits\n4. Gestion des Produits par le Commerçant (CRUD, stock, disponibilité, images Cloudinary)\n5. Gestion et modération des Produits par l'Admin (CRUD, statistiques, images Cloudinary)\n6. Authentification Client (inscription, connexion, session, déconnexion et contrôles de rôle)",
+    "description": "Collection complète des routes OneMoreBite :\n1. Authentification Admin & Commerçant avec JWT et BCrypt\n2. Cycle de vie Commerçant (Inscription EN_ATTENTE -> Validation Admin ACTIF / REJETE)\n3. Consultation publique des Produits\n4. Gestion des Produits par le Commerçant (CRUD, stock, disponibilité, images Cloudinary)\n5. Gestion et modération des Produits par l'Admin (CRUD, statistiques, images Cloudinary)\n6. Authentification Client (inscription, connexion, session, déconnexion et contrôles de rôle)\n7. Réservations Client (création, liste, détail, modification, annulation)\n8. Réservations Commerçant (liste, détail, confirmation, refus)\n9. Réservations : sécurité, isolation client/commerçant et transitions de statut",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -69,6 +69,66 @@
     {
       "key": "client_id",
       "value": "3",
+      "type": "string"
+    },
+    {
+      "key": "reservation_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "reservation_id_confirm",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reservation_id_refuse",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reservation_id_security",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "client2_email",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "client2_password",
+      "value": "client2pass",
+      "type": "string"
+    },
+    {
+      "key": "client2_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "merchant2_email",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "merchant2_password",
+      "value": "merchant2pass",
+      "type": "string"
+    },
+    {
+      "key": "merchant2_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "merchant2_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "produit_indisponible_id",
+      "value": "",
       "type": "string"
     }
   ],
@@ -2857,6 +2917,2244 @@
                 "exec": [
                   "pm.test(\"Statut HTTP 403 - Route commerçant refusée à l'admin\", function () {",
                   "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. Réservations (Client)",
+      "item": [
+        {
+          "name": "1. Login Client (prérequis)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/client/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "client",
+                "login"
+              ]
+            },
+            "description": "Connexion du client de démonstration (sami@gmail.com / client123). Le token est enregistré dans {{client_token}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{client_email}}\",\n  \"motDePasse\": \"{{client_password}}\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Client connecté\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Token et rôle CLIENT présents\", function () {",
+                  "    pm.expect(jsonData.token).to.be.a(\"string\").and.not.empty;",
+                  "    pm.expect(jsonData.role).to.eql(\"CLIENT\");",
+                  "});",
+                  "pm.collectionVariables.set(\"client_token\", jsonData.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Créer une réservation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/reservations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations"
+              ]
+            },
+            "description": "Crée une réservation pour le produit {{produit_id}} avec la quantité 2. Le client est déduit du token ; aucun clientId n’est accepté. Réponse attendue : 201 avec statut EN_ATTENTE. Erreurs : 400 (produit indisponible, stock insuffisant, quantité invalide), 401 (non authentifié), 403 (compte non client), 404 (produit inconnu).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produitId\": {{produit_id}},\n  \"quantite\": 2\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 201 - Réservation créée\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Réservation initialisée EN_ATTENTE\", function () {",
+                  "    pm.expect(jsonData.statut).to.eql(\"EN_ATTENTE\");",
+                  "    pm.expect(jsonData.id).to.be.a(\"number\");",
+                  "});",
+                  "pm.collectionVariables.set(\"reservation_id\", jsonData.id.toString());"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Lister mes réservations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/mes-reservations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "mes-reservations"
+              ]
+            },
+            "description": "Retourne uniquement les réservations du client authentifié. Réponse attendue : 200 avec un tableau contenant la réservation créée. Erreurs : 401 (non authentifié), 403 (compte non client).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Liste des réservations\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"La réservation du client est présente\", function () {",
+                  "    pm.expect(jsonData).to.be.an(\"array\");",
+                  "    pm.expect(jsonData.some(function (r) { return r.id.toString() === pm.collectionVariables.get(\"reservation_id\"); })).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Obtenir le détail d’une réservation",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id}}"
+              ]
+            },
+            "description": "Retourne le détail d’une réservation appartenant au client authentifié, avec les informations du produit et du commerçant. Réponse attendue : 200. Erreurs : 401, 403 (réservation d’un autre client), 404.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Détail de la réservation\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"La réservation correspond à l’identifiant demandé\", function () {",
+                  "    pm.expect(jsonData.id.toString()).to.eql(pm.collectionVariables.get(\"reservation_id\"));",
+                  "});",
+                  "pm.test(\"Les informations produit et commerçant sont présentes\", function () {",
+                  "    pm.expect(jsonData).to.have.property(\"produitNom\");",
+                  "    pm.expect(jsonData).to.have.property(\"commercantId\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Modifier une réservation EN_ATTENTE",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id}}"
+              ]
+            },
+            "description": "Modifie la quantité d’une réservation EN_ATTENTE appartenant au client. Corps : { \"quantite\": 3 }. Réponse attendue : 200 avec quantite = 3. Erreurs : 400 (statut non EN_ATTENTE, quantité invalide, stock insuffisant), 401, 403, 404.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantite\": 3\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Réservation modifiée\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"La quantité a été mise à jour\", function () {",
+                  "    pm.expect(jsonData.quantite).to.eql(3);",
+                  "    pm.expect(jsonData.statut).to.eql(\"EN_ATTENTE\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Annuler une réservation EN_ATTENTE",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id}}/annuler",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id}}",
+                "annuler"
+              ]
+            },
+            "description": "Annule une réservation EN_ATTENTE appartenant au client authentifié. Réponse attendue : 200 avec statut ANNULEE. Erreurs : 400 (statut Confirmée/Refusée/Annulée), 401, 403, 404.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Réservation annulée\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Le statut est ANNULEE\", function () {",
+                  "    pm.expect(jsonData.statut).to.eql(\"ANNULEE\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. Annuler une réservation déjà annulée (400)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id}}/annuler",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id}}",
+                "annuler"
+              ]
+            },
+            "description": "Tente d’annuler une seconde fois la réservation déjà ANNULEE. Réponse attendue : 400 avec un message explicite.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 400 - Annulation refusée\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Message d’erreur présent\", function () {",
+                  "    pm.expect(pm.response.json()).to.have.property(\"erreur\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "8. Modifier une réservation annulée (400)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id}}"
+              ]
+            },
+            "description": "Tente de modifier une réservation ANNULEE. Réponse attendue : 400, car seules les réservations EN_ATTENTE sont modifiables.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantite\": 4\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 400 - Modification refusée\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "9. Réserver un produit inconnu (404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/reservations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations"
+              ]
+            },
+            "description": "Tente de réserver un produit inexistant (id 999999). Réponse attendue : 404. Ce test valide le rejet des produits invalides sans dépendre des données de démonstration.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produitId\": 999999,\n  \"quantite\": 1\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 404 - Produit inconnu\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "10. Réserver une quantité supérieure au stock (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/reservations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations"
+              ]
+            },
+            "description": "Tente de réserver une quantité supérieure au stock du produit. Réponse attendue : 400.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produitId\": {{produit_id}},\n  \"quantite\": 999999\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 400 - Stock insuffisant\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "11. Accès sans token (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/mes-reservations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "mes-reservations"
+              ]
+            },
+            "description": "Vérifie que la liste des réservations client est protégée par le mécanisme JWT existant. Réponse attendue : 401."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 401 - Authentification requise\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7. Réservations (Commerçant)",
+      "item": [
+        {
+          "name": "1. Login Client (prérequis création)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/client/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "client",
+                "login"
+              ]
+            },
+            "description": "Connexion du client de démonstration (sami@gmail.com / client123). Le token est enregistré dans {{client_token}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{client_email}}\",\n  \"motDePasse\": \"{{client_password}}\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Client connecté\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Token et rôle CLIENT présents\", function () {",
+                  "    pm.expect(jsonData.token).to.be.a(\"string\").and.not.empty;",
+                  "    pm.expect(jsonData.role).to.eql(\"CLIENT\");",
+                  "});",
+                  "pm.collectionVariables.set(\"client_token\", jsonData.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Login Commerçant (prérequis)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/commercant/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "commercant",
+                "login"
+              ]
+            },
+            "description": "Connexion du commerçant de démonstration (contact@benali.tn / pass123). Le token est enregistré dans {{commercant_token}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"contact@benali.tn\",\n  \"motDePasse\": \"pass123\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Commerçant connecté\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Token et rôle COMMERCANT présents\", function () {",
+                  "    pm.expect(jsonData.token).to.be.a(\"string\").and.not.empty;",
+                  "    pm.expect(jsonData.role).to.eql(\"COMMERCANT\");",
+                  "});",
+                  "pm.collectionVariables.set(\"commercant_token\", jsonData.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Créer un produit temporaire indisponible",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/produits",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "produits"
+              ]
+            },
+            "description": "Crée un produit temporaire avec disponibilite = false pour tester le refus de réservation d’un produit indisponible. Le commerçant est déduit du token. Réponse attendue : 201.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nom\": \"Produit Indisponible Test Réservation\",\n  \"description\": \"Produit temporaire pour tester le refus de réservation\",\n  \"prix\": 5.0,\n  \"quantite\": 5,\n  \"disponibilite\": false\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 201 - Produit indisponible créé\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set(\"produit_indisponible_id\", pm.response.json().id.toString());"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Client tente de réserver un produit indisponible (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/reservations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations"
+              ]
+            },
+            "description": "Le client authentifié tente de réserver le produit temporaire marqué indisponible. Réponse attendue : 400 avec un message explicite.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produitId\": {{produit_indisponible_id}},\n  \"quantite\": 1\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 400 - Produit indisponible\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Supprimer le produit temporaire",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/produits/{{produit_indisponible_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "produits",
+                "{{produit_indisponible_id}}"
+              ]
+            },
+            "description": "Supprime le produit temporaire créé pour le test. Réponse attendue : 204.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 204 - Produit supprimé\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Créer une réservation à confirmer (client)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/reservations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations"
+              ]
+            },
+            "description": "Crée une réservation EN_ATTENTE pour le produit {{produit_id}} afin de tester la confirmation commerçant. Réponse attendue : 201.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produitId\": {{produit_id}},\n  \"quantite\": 1\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 201 - Réservation créée\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Réservation initialisée EN_ATTENTE\", function () {",
+                  "    pm.expect(jsonData.statut).to.eql(\"EN_ATTENTE\");",
+                  "    pm.expect(jsonData.id).to.be.a(\"number\");",
+                  "});",
+                  "pm.collectionVariables.set(\"reservation_id_confirm\", jsonData.id.toString());"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. Lister les réservations reçues",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/recues",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "recues"
+              ]
+            },
+            "description": "Retourne les réservations liées aux produits du commerçant authentifié. Réponse attendue : 200 avec un tableau contenant la réservation à confirmer. Erreurs : 401, 403 (compte non commerçant).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Réservations reçues\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"La réservation du produit du commerçant est présente\", function () {",
+                  "    pm.expect(jsonData).to.be.an(\"array\");",
+                  "    pm.expect(jsonData.some(function (r) { return r.id.toString() === pm.collectionVariables.get(\"reservation_id_confirm\"); })).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "8. Obtenir le détail d’une réservation reçue",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id_confirm}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id_confirm}}"
+              ]
+            },
+            "description": "Retourne le détail d’une réservation liée à un produit du commerçant authentifié. Réponse attendue : 200. Erreurs : 401, 403 (réservation d’un autre commerçant), 404.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Détail de la réservation reçue\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"La réservation est liée au produit du commerçant\", function () {",
+                  "    pm.expect(pm.response.json().id.toString()).to.eql(pm.collectionVariables.get(\"reservation_id_confirm\"));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "9. Confirmer une réservation EN_ATTENTE",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id_confirm}}/confirmer",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id_confirm}}",
+                "confirmer"
+              ]
+            },
+            "description": "Confirme une réservation EN_ATTENTE liée à un produit du commerçant authentifié. Réponse attendue : 200 avec statut CONFIRMEE. Erreurs : 400 (déjà traitée), 401, 403 (autre commerçant), 404.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Réservation confirmée\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Le statut est CONFIRMEE\", function () {",
+                  "    pm.expect(jsonData.statut).to.eql(\"CONFIRMEE\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "10. Confirmer une réservation déjà confirmée (400)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id_confirm}}/confirmer",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id_confirm}}",
+                "confirmer"
+              ]
+            },
+            "description": "Tente de confirmer une réservation déjà CONFIRMEE. Réponse attendue : 400.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 400 - Transition refusée\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "11. Créer une réservation à refuser (client)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/reservations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations"
+              ]
+            },
+            "description": "Crée une réservation EN_ATTENTE pour tester le refus commerçant. Réponse attendue : 201.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produitId\": {{produit_id}},\n  \"quantite\": 1\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 201 - Réservation créée\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Réservation initialisée EN_ATTENTE\", function () {",
+                  "    pm.expect(jsonData.statut).to.eql(\"EN_ATTENTE\");",
+                  "    pm.expect(jsonData.id).to.be.a(\"number\");",
+                  "});",
+                  "pm.collectionVariables.set(\"reservation_id_refuse\", jsonData.id.toString());"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "12. Refuser une réservation EN_ATTENTE",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id_refuse}}/refuser",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id_refuse}}",
+                "refuser"
+              ]
+            },
+            "description": "Refuse une réservation EN_ATTENTE liée à un produit du commerçant authentifié. Réponse attendue : 200 avec statut REFUSEE. Erreurs : 400 (déjà traitée), 401, 403 (autre commerçant), 404.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Réservation refusée\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Le statut est REFUSEE\", function () {",
+                  "    pm.expect(jsonData.statut).to.eql(\"REFUSEE\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "13. Refuser une réservation déjà refusée (400)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id_refuse}}/refuser",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id_refuse}}",
+                "refuser"
+              ]
+            },
+            "description": "Tente de refuser une réservation déjà REFUSEE. Réponse attendue : 400.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 400 - Transition refusée\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "14. Client tente d’annuler une réservation confirmée (400)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id_confirm}}/annuler",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id_confirm}}",
+                "annuler"
+              ]
+            },
+            "description": "Le client propriétaire tente d’annuler une réservation CONFIRMEE. Réponse attendue : 400, l’annulation n’étant autorisée qu’en EN_ATTENTE.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 400 - Annulation d’une réservation confirmée refusée\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "15. Client tente d’annuler une réservation refusée (400)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id_refuse}}/annuler",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id_refuse}}",
+                "annuler"
+              ]
+            },
+            "description": "Le client propriétaire tente d’annuler une réservation REFUSEE. Réponse attendue : 400.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 400 - Annulation d’une réservation refusée refusée\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "16. Accès sans token (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/recues",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "recues"
+              ]
+            },
+            "description": "Vérifie que la liste des réservations commerçant est protégée. Réponse attendue : 401."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 401 - Authentification requise\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8. Réservations — Sécurité & transitions",
+      "item": [
+        {
+          "name": "1. Login Admin (prérequis)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Connexion de l’administrateur (admin@enicar.com / admin). Le token est enregistré dans {{admin_token}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@enicar.com\",\n  \"motDePasse\": \"admin\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Admin connecté\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.collectionVariables.set(\"admin_token\", jsonData.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Login Client (prérequis)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/client/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "client",
+                "login"
+              ]
+            },
+            "description": "Connexion du client de démonstration (sami@gmail.com / client123). Le token est enregistré dans {{client_token}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{client_email}}\",\n  \"motDePasse\": \"{{client_password}}\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Client connecté\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Token et rôle CLIENT présents\", function () {",
+                  "    pm.expect(jsonData.token).to.be.a(\"string\").and.not.empty;",
+                  "    pm.expect(jsonData.role).to.eql(\"CLIENT\");",
+                  "});",
+                  "pm.collectionVariables.set(\"client_token\", jsonData.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Login Commerçant (prérequis)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/commercant/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "commercant",
+                "login"
+              ]
+            },
+            "description": "Connexion du commerçant de démonstration (contact@benali.tn / pass123). Le token est enregistré dans {{commercant_token}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"contact@benali.tn\",\n  \"motDePasse\": \"pass123\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Commerçant connecté\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Token et rôle COMMERCANT présents\", function () {",
+                  "    pm.expect(jsonData.token).to.be.a(\"string\").and.not.empty;",
+                  "    pm.expect(jsonData.role).to.eql(\"COMMERCANT\");",
+                  "});",
+                  "pm.collectionVariables.set(\"commercant_token\", jsonData.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Inscription d’un second client",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/client/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "client",
+                "register"
+              ]
+            },
+            "description": "Crée un second client pour vérifier qu’il ne peut pas accéder aux réservations du premier. Un email unique est généré avant la requête. Réponse attendue : 201.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nom\": \"Client Sécurité Réservation\",\n  \"email\": \"{{client2_email}}\",\n  \"motDePasse\": \"{{client2_password}}\",\n  \"telephone\": \"20111222\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set(\"client2_email\", \"reservation.client2.\" + Date.now() + \"@example.com\");"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 201 - Second client créé\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Connexion du second client",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/client/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "client",
+                "login"
+              ]
+            },
+            "description": "Connecte le second client. Le token est enregistré dans {{client2_token}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{client2_email}}\",\n  \"motDePasse\": \"{{client2_password}}\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Second client connecté\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.collectionVariables.set(\"client2_token\", pm.response.json().token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Inscription d’un second commerçant",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/commercant/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "commercant",
+                "register"
+              ]
+            },
+            "description": "Crée un second commerçant pour vérifier l’isolation entre commerçants. Un email unique est généré avant la requête. Réponse attendue : 201 avec statut EN_ATTENTE.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nom\": \"Commerçant Sécurité Réservation\",\n  \"email\": \"{{merchant2_email}}\",\n  \"motDePasse\": \"{{merchant2_password}}\",\n  \"telephone\": \"71123456\",\n  \"localisation\": \"Tunis\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set(\"merchant2_email\", \"reservation.merchant2.\" + Date.now() + \"@example.com\");"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 201 - Second commerçant créé\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set(\"merchant2_id\", pm.response.json().id.toString());"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. Admin accepte le second commerçant",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/commercants/{{merchant2_id}}/accepter",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "commercants",
+                "{{merchant2_id}}",
+                "accepter"
+              ]
+            },
+            "description": "Valide le second commerçant pour qu’il puisse se connecter. Réponse attendue : 200 avec statut ACTIF.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Commerçant accepté\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Statut ACTIF\", function () {",
+                  "    pm.expect(pm.response.json().statut).to.eql(\"ACTIF\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "8. Connexion du second commerçant",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/commercant/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "commercant",
+                "login"
+              ]
+            },
+            "description": "Connecte le second commerçant. Le token est enregistré dans {{merchant2_token}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{merchant2_email}}\",\n  \"motDePasse\": \"{{merchant2_password}}\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Second commerçant connecté\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.collectionVariables.set(\"merchant2_token\", pm.response.json().token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "9. Créer une réservation de sécurité (client)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/reservations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations"
+              ]
+            },
+            "description": "Crée une réservation EN_ATTENTE appartenant au premier client, utilisée pour les tests d’accès non autorisé. Réponse attendue : 201.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produitId\": {{produit_id}},\n  \"quantite\": 1\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 201 - Réservation créée\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Réservation initialisée EN_ATTENTE\", function () {",
+                  "    pm.expect(jsonData.statut).to.eql(\"EN_ATTENTE\");",
+                  "    pm.expect(jsonData.id).to.be.a(\"number\");",
+                  "});",
+                  "pm.collectionVariables.set(\"reservation_id_security\", jsonData.id.toString());"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "10. Autre client tente de lire la réservation (403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id_security}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id_security}}"
+              ]
+            },
+            "description": "Le second client tente de lire une réservation du premier client. Réponse attendue : 403 (contrôle de propriété côté serveur).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client2_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 403 - Accès interdit\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "11. Autre client tente de modifier la réservation (403)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id_security}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id_security}}"
+              ]
+            },
+            "description": "Le second client tente de modifier une réservation du premier client. Réponse attendue : 403.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client2_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantite\": 1\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 403 - Modification interdite\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "12. Autre client tente d’annuler la réservation (403)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id_security}}/annuler",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id_security}}",
+                "annuler"
+              ]
+            },
+            "description": "Le second client tente d’annuler une réservation du premier client. Réponse attendue : 403.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client2_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 403 - Annulation interdite\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "13. Second commerçant tente de confirmer (403)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id_security}}/confirmer",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id_security}}",
+                "confirmer"
+              ]
+            },
+            "description": "Le second commerçant tente de confirmer une réservation liée à un produit du premier commerçant. Réponse attendue : 403.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{merchant2_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 403 - Confirmation interdite\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "14. Second commerçant tente de refuser (403)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id_security}}/refuser",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id_security}}",
+                "refuser"
+              ]
+            },
+            "description": "Le second commerçant tente de refuser une réservation liée à un produit du premier commerçant. Réponse attendue : 403.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{merchant2_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 403 - Refus interdit\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "15. Commerçant tente une action client (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/reservations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations"
+              ]
+            },
+            "description": "Un token COMMERCANT tente de créer une réservation client. Réponse attendue : 403.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produitId\": {{produit_id}},\n  \"quantite\": 1\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 403 - Rôle client requis\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "16. Client tente une action commerçant (403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/recues",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "recues"
+              ]
+            },
+            "description": "Un token CLIENT tente de lister les réservations commerçant. Réponse attendue : 403.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 403 - Rôle commerçant requis\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "17. Admin tente une action réservation (403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id_security}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id_security}}"
+              ]
+            },
+            "description": "Un token ADMIN tente d’accéder au détail d’une réservation. Les routes de réservation sont réservées aux clients et commerçants. Réponse attendue : 403.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 403 - Accès admin interdit\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "18. Créer une réservation sans token (401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/reservations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations"
+              ]
+            },
+            "description": "Tente de créer une réservation sans Bearer Token. Réponse attendue : 401.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produitId\": {{produit_id}},\n  \"quantite\": 1\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 401 - Authentification requise\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "19. Confirmer sans token (401)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id_security}}/confirmer",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id_security}}",
+                "confirmer"
+              ]
+            },
+            "description": "Tente de confirmer une réservation sans Bearer Token. Réponse attendue : 401."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 401 - Authentification requise\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "20. Confirmer la réservation de sécurité (commerçant propriétaire)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id_security}}/confirmer",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id_security}}",
+                "confirmer"
+              ]
+            },
+            "description": "Le commerçant propriétaire confirme la réservation de sécurité restée EN_ATTENTE. Réponse attendue : 200 avec statut CONFIRMEE.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Réservation confirmée\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Statut CONFIRMEE\", function () {",
+                  "    pm.expect(pm.response.json().statut).to.eql(\"CONFIRMEE\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "21. Reconfirmer une réservation traitée (400)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id_security}}/confirmer",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id_security}}",
+                "confirmer"
+              ]
+            },
+            "description": "Tente de confirmer une réservation déjà CONFIRMEE. Réponse attendue : 400.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 400 - Transition refusée\", function () {",
+                  "    pm.response.to.have.status(400);",
                   "});"
                 ],
                 "type": "text/javascript"

@@ -35,6 +35,14 @@ public class Main {
             System.out.println("  POST http://localhost:" + PORT + "/auth/client/login          (Connexion client)");
             System.out.println("  POST http://localhost:" + PORT + "/auth/commercant/register   (Inscription commerçant - EN_ATTENTE)");
             System.out.println("  POST http://localhost:" + PORT + "/auth/commercant/login      (Connexion commerçant)");
+            System.out.println("  POST http://localhost:" + PORT + "/reservations              (Client: créer une réservation)");
+            System.out.println("  GET  http://localhost:" + PORT + "/reservations/mes-reservations (Client: mes réservations)");
+            System.out.println("  GET  http://localhost:" + PORT + "/reservations/recues       (Commerçant: réservations reçues)");
+            System.out.println("  GET  http://localhost:" + PORT + "/reservations/:id          (Client propriétaire / Commerçant du produit)");
+            System.out.println("  PUT  http://localhost:" + PORT + "/reservations/:id          (Client: modifier une réservation EN_ATTENTE)");
+            System.out.println("  PUT  http://localhost:" + PORT + "/reservations/:id/annuler  (Client: annuler une réservation EN_ATTENTE)");
+            System.out.println("  PUT  http://localhost:" + PORT + "/reservations/:id/confirmer (Commerçant: confirmer une réservation EN_ATTENTE)");
+            System.out.println("  PUT  http://localhost:" + PORT + "/reservations/:id/refuser  (Commerçant: refuser une réservation EN_ATTENTE)");
             System.out.println("  GET  http://localhost:" + PORT + "/admin/commercants         (Admin: Liste des commerçants ?statut=EN_ATTENTE)");
             System.out.println("  PUT  http://localhost:" + PORT + "/admin/commercants/:id/accepter (Admin: Valider compte -> ACTIF)");
             System.out.println("  PUT  http://localhost:" + PORT + "/admin/commercants/:id/rejeter  (Admin: Rejeter compte -> REJETE)");

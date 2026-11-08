@@ -6,6 +6,7 @@ import tn.enicarthage.onemorebite.controller.AuthController;
 import tn.enicarthage.onemorebite.controller.ClientController;
 import tn.enicarthage.onemorebite.controller.CommercantController;
 import tn.enicarthage.onemorebite.controller.ProduitController;
+import tn.enicarthage.onemorebite.controller.ReservationController;
 import tn.enicarthage.onemorebite.dto.ClientRegisterRequest;
 import tn.enicarthage.onemorebite.dto.CommercantRegisterRequest;
 import tn.enicarthage.onemorebite.dto.ImageUploadRequest;
@@ -13,6 +14,8 @@ import tn.enicarthage.onemorebite.dto.LoginRequest;
 import tn.enicarthage.onemorebite.dto.ProduitDisponibiliteRequest;
 import tn.enicarthage.onemorebite.dto.ProduitRequest;
 import tn.enicarthage.onemorebite.dto.ProduitStockRequest;
+import tn.enicarthage.onemorebite.dto.ReservationRequest;
+import tn.enicarthage.onemorebite.dto.ReservationUpdateRequest;
 import tn.enicarthage.onemorebite.exception.AuthenticationException;
 import tn.enicarthage.onemorebite.exception.ForbiddenException;
 import tn.enicarthage.onemorebite.exception.ResourceNotFoundException;
@@ -47,6 +50,7 @@ public class Router {
     private final AuthController authController = new AuthController();
     private final ClientController clientController = new ClientController();
     private final CommercantController commercantController = new CommercantController();
+    private final ReservationController reservationController = new ReservationController();
     private final AuthService authService = new AuthService();
     private final JwtUtil jwtUtil = new JwtUtil();
 
@@ -95,6 +99,7 @@ public class Router {
             case "auth" -> routesAuth(methode, segments, exchange);
             case "admin" -> routesAdmin(methode, segments, exchange);
             case "commercants" -> routesCommercantPublic(methode, segments, exchange);
+            case "reservations" -> routesReservation(methode, segments, exchange);
             default -> throw new ResourceNotFoundException("Route inconnue /" + segments[1]);
         };
     }
@@ -326,6 +331,84 @@ public class Router {
         throw new ResourceNotFoundException("Route inconnue.");
     }
 
+    private Reponse routesReservation(String methode, String[] segments, HttpExchange exchange) throws IOException {
+        // POST /reservations : création par un client authentifié
+        if (segments.length == 2) {
+            if (!"POST".equalsIgnoreCase(methode)) {
+                throw new IllegalArgumentException("Méthode non supportée: " + methode);
+            }
+            JwtUtil.JwtClaims claims = exigerTokenClient(exchange);
+            ReservationRequest request = lireCorps(exchange, ReservationRequest.class);
+            return new Reponse(201, gson.toJson(reservationController.creer(request, claims)));
+        }
+
+        if (segments.length == 3) {
+            String action = segments[2];
+
+            // GET /reservations/mes-reservations : réservations du client connecté
+            if ("mes-reservations".equalsIgnoreCase(action) || "mes".equalsIgnoreCase(action)) {
+                if (!"GET".equalsIgnoreCase(methode)) {
+                    throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                }
+                JwtUtil.JwtClaims claims = exigerTokenClient(exchange);
+                return new Reponse(200, gson.toJson(reservationController.listerMesReservations(claims)));
+            }
+
+            // GET /reservations/recues : réservations reçues par le commerçant connecté
+            if ("recues".equalsIgnoreCase(action)) {
+                if (!"GET".equalsIgnoreCase(methode)) {
+                    throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                }
+                JwtUtil.JwtClaims claims = exigerTokenCommercantReservation(exchange);
+                return new Reponse(200, gson.toJson(reservationController.listerRecues(claims)));
+            }
+
+            int id = parseId(action);
+
+            // GET /reservations/{id} : détail accessible au client propriétaire ou au commerçant du produit
+            if ("GET".equalsIgnoreCase(methode)) {
+                JwtUtil.JwtClaims claims = exigerTokenUtilisateur(exchange);
+                return new Reponse(200, gson.toJson(reservationController.obtenir(id, claims)));
+            }
+
+            // PUT|PATCH /reservations/{id} : modification par le client propriétaire
+            if ("PUT".equalsIgnoreCase(methode) || "PATCH".equalsIgnoreCase(methode)) {
+                JwtUtil.JwtClaims claims = exigerTokenClient(exchange);
+                ReservationUpdateRequest request = lireCorps(exchange, ReservationUpdateRequest.class);
+                return new Reponse(200, gson.toJson(reservationController.modifier(id, request, claims)));
+            }
+
+            throw new IllegalArgumentException("Méthode non supportée: " + methode);
+        }
+
+        if (segments.length == 4) {
+            int id = parseId(segments[2]);
+            String action = segments[3];
+
+            if (!"PUT".equalsIgnoreCase(methode) && !"PATCH".equalsIgnoreCase(methode)) {
+                throw new IllegalArgumentException("Méthode non supportée: " + methode);
+            }
+
+            return switch (action) {
+                case "annuler" -> {
+                    JwtUtil.JwtClaims claims = exigerTokenClient(exchange);
+                    yield new Reponse(200, gson.toJson(reservationController.annuler(id, claims)));
+                }
+                case "confirmer" -> {
+                    JwtUtil.JwtClaims claims = exigerTokenCommercantReservation(exchange);
+                    yield new Reponse(200, gson.toJson(reservationController.confirmer(id, claims)));
+                }
+                case "refuser" -> {
+                    JwtUtil.JwtClaims claims = exigerTokenCommercantReservation(exchange);
+                    yield new Reponse(200, gson.toJson(reservationController.refuser(id, claims)));
+                }
+                default -> throw new ResourceNotFoundException("Action réservation inconnue: " + action);
+            };
+        }
+
+        throw new ResourceNotFoundException("Route réservation inconnue.");
+    }
+
     private Reponse routesProduit(String methode, String[] segments, HttpExchange exchange) throws IOException {
         if (segments.length == 2) {
             return switch (methode.toUpperCase()) {
@@ -434,6 +517,28 @@ public class Router {
             throw new ForbiddenException("Cette action est réservée aux commerçants.");
         }
         return claims;
+    }
+
+    private JwtUtil.JwtClaims exigerTokenClient(HttpExchange exchange) {
+        String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
+        String token = authService.extraireToken(authHeader);
+        return jwtUtil.validerTokenClient(token);
+    }
+
+    private JwtUtil.JwtClaims exigerTokenCommercantReservation(HttpExchange exchange) {
+        String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
+        String token = authService.extraireToken(authHeader);
+        JwtUtil.JwtClaims claims = jwtUtil.validerToken(token);
+        if (!"COMMERCANT".equalsIgnoreCase(claims.role())) {
+            throw new ForbiddenException("Cette action est réservée aux commerçants.");
+        }
+        return claims;
+    }
+
+    private JwtUtil.JwtClaims exigerTokenUtilisateur(HttpExchange exchange) {
+        String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
+        String token = authService.extraireToken(authHeader);
+        return jwtUtil.validerToken(token);
     }
 
     private String extraireParametre(String query, String paramName) {

@@ -10,6 +10,8 @@ API Java 17 (HTTP server natif) pour la gestion d'une plateforme anti-gaspillage
 - Gestion des produits par les commerçants : CRUD, stock, disponibilité, images Cloudinary
 - Gestion et modération des produits par l'administrateur : filtres, CRUD, statistiques
 - Upload / suppression d'images via l'API Cloudinary
+- Réservations clients : création, consultation, modification et annulation (`EN_ATTENTE` uniquement)
+- Réservations commerçants : consultation des réservations reçues, confirmation et refus (`EN_ATTENTE` uniquement)
 
 ## Prérequis
 
@@ -88,6 +90,36 @@ Sans configuration, l'upload renvoie une erreur `503` avec un message explicite.
 | POST | `/produits/images` | Uploader une image Cloudinary |
 | DELETE | `/produits/images?publicId=...` | Supprimer une image Cloudinary |
 
+### Réservations (Client, Bearer Token `CLIENT`)
+
+Une réservation est stockée dans la table `commande` existante. Le client et le
+commerçant sont toujours déduits du token JWT et de la relation
+`commande.produit_id → produit.commercant_id` ; aucun identifiant
+d'appartenance envoyé par le client n'est accepté.
+
+| Méthode | Route | Description |
+| --- | --- | --- |
+| POST | `/reservations` | Créer une réservation (`produitId`, `quantite`) |
+| GET | `/reservations/mes-reservations` | Lister uniquement ses propres réservations |
+| GET | `/reservations/{id}` | Détail (client propriétaire ou commerçant du produit) |
+| PUT / PATCH | `/reservations/{id}` | Modifier la quantité d'une réservation `EN_ATTENTE` |
+| PUT / PATCH | `/reservations/{id}/annuler` | Annuler une réservation `EN_ATTENTE` |
+
+Statuts : `EN_ATTENTE` → `CONFIRMEE`, `EN_ATTENTE` → `REFUSEE`,
+`EN_ATTENTE` → `ANNULEE` (client propriétaire uniquement).
+
+### Réservations (Commerçant, Bearer Token `COMMERCANT`)
+
+| Méthode | Route | Description |
+| --- | --- | --- |
+| GET | `/reservations/recues` | Lister les réservations des produits du commerçant connecté |
+| GET | `/reservations/{id}` | Détail d'une réservation de ses propres produits |
+| PUT / PATCH | `/reservations/{id}/confirmer` | Confirmer une réservation `EN_ATTENTE` |
+| PUT / PATCH | `/reservations/{id}/refuser` | Refuser une réservation `EN_ATTENTE` |
+
+Le paiement reste effectué directement auprès du commerçant lors du retrait ;
+aucun paiement en ligne n'est géré par l'API.
+
 ### Administrateur (Bearer Token `ADMIN`)
 
 | Méthode | Route | Description |
@@ -124,5 +156,16 @@ Importer `OneMoreBite.postman_collection.json`. La collection contient :
 3. Produits (public)
 4. Gestion Produits (Commerçant)
 5. Gestion Produits (Admin)
+6. Réservations (Client)
+7. Réservations (Commerçant)
+8. Réservations — Sécurité & transitions
 
-Les scripts de test enregistrent automatiquement les tokens et les identifiants de produits dans les variables de collection (`admin_token`, `commercant_token`, `client_token`, `produit_id`, `admin_produit_id`, `image_url`, `image_public_id`).
+Les scripts de test enregistrent automatiquement les tokens et les identifiants de produits dans les variables de collection (`admin_token`, `commercant_token`, `client_token`, `produit_id`, `admin_produit_id`, `image_url`, `image_public_id`, `reservation_id`, etc.).
+
+## Migration base de données
+
+Pour une base existante créée avant l'ajout des réservations commerçant, exécuter
+`src/main/resources/database/migration_reservation_refusee.sql`. Cette migration
+ajoute uniquement la valeur `REFUSEE` à l'enum `commande.statut`, nécessaire pour
+distinguer un refus commerçant d'une annulation client. Le script complet
+`src/main/resources/database/database.sql` contient déjà ce statut.
