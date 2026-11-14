@@ -3,6 +3,7 @@ package tn.enicarthage.onemorebite.service;
 import tn.enicarthage.onemorebite.dao.AdministrateurDAO;
 import tn.enicarthage.onemorebite.dao.ClientDAO;
 import tn.enicarthage.onemorebite.dao.CommercantDAO;
+import tn.enicarthage.onemorebite.dao.StatutCompteUtilisateur;
 import tn.enicarthage.onemorebite.dto.AdminResponse;
 import tn.enicarthage.onemorebite.dto.ClientResponse;
 import tn.enicarthage.onemorebite.dto.CommercantResponse;
@@ -59,6 +60,8 @@ public class AuthService {
                 throw new AuthenticationException("Identifiants invalides : Mot de passe incorrect.");
             }
 
+            verifierCompteNonDesactive(admin.getStatutCompte());
+
             if (!PasswordUtil.estHashBCrypt(admin.getMotDePasse())) {
                 administrateurDAO.mettreAJourMotDePasse(admin.getId(), PasswordUtil.hash(password));
             }
@@ -80,6 +83,8 @@ public class AuthService {
             if (!PasswordUtil.verifier(password, c.getMotDePasse())) {
                 throw new AuthenticationException("Identifiants invalides : Mot de passe incorrect.");
             }
+
+            verifierCompteNonDesactive(c.getStatutCompte());
 
             // Contrôle du statut du compte commerçant
             if ("EN_ATTENTE".equalsIgnoreCase(c.getStatut())) {
@@ -110,6 +115,8 @@ public class AuthService {
                 throw new AuthenticationException("Identifiants invalides : Mot de passe incorrect.");
             }
 
+            verifierCompteNonDesactive(client.getStatutCompte());
+
             if (!PasswordUtil.estHashBCrypt(client.getMotDePasse())) {
                 clientDAO.mettreAJourMotDePasse(client.getId(), PasswordUtil.hash(password));
             }
@@ -135,6 +142,7 @@ public class AuthService {
         if ("COMMERCANT".equalsIgnoreCase(claims.role())) {
             Commercant c = commercantDAO.trouverParId(claims.id())
                     .orElseThrow(() -> new AuthenticationException("Session invalide : Commerçant non trouvé."));
+            verifierCompteNonDesactive(c.getStatutCompte());
             return new CommercantResponse(
                     c.getId(),
                     c.getNom(),
@@ -148,6 +156,7 @@ public class AuthService {
         if ("CLIENT".equalsIgnoreCase(claims.role())) {
             Client client = clientDAO.trouverParId(claims.id())
                     .orElseThrow(() -> new AuthenticationException("Session invalide : Client non trouvé."));
+            verifierCompteNonDesactive(client.getStatutCompte());
             return new ClientResponse(
                     client.getId(),
                     client.getNom(),
@@ -163,6 +172,7 @@ public class AuthService {
 
         Administrateur admin = administrateurDAO.trouverParId(claims.id())
                 .orElseThrow(() -> new AuthenticationException("Session invalide : Administrateur non trouvé."));
+        verifierCompteNonDesactive(admin.getStatutCompte());
 
         return new AdminResponse(
                 admin.getId(),
@@ -296,6 +306,13 @@ public class AuthService {
         }
 
         jwtUtil.revoquerToken(extraireToken(authHeader));
+    }
+
+    private void verifierCompteNonDesactive(String statutCompte) {
+        if (StatutCompteUtilisateur.estDesactive(statutCompte)) {
+            throw new AuthenticationException(
+                    "Votre compte a été désactivé par l'administrateur. Veuillez le contacter.");
+        }
     }
 
     private String normaliserRole(JwtUtil.JwtClaims claims) {

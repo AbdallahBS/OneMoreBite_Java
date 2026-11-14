@@ -2,6 +2,7 @@ package tn.enicarthage.onemorebite.router;
 
 import com.google.gson.*;
 import com.sun.net.httpserver.HttpExchange;
+import tn.enicarthage.onemorebite.controller.AdminController;
 import tn.enicarthage.onemorebite.controller.AuthController;
 import tn.enicarthage.onemorebite.controller.AvisController;
 import tn.enicarthage.onemorebite.controller.ClientController;
@@ -39,6 +40,10 @@ public class Router {
 
     private record Reponse(int statut, String corps) {}
 
+    // Origine CORS configurable (CORS_ALLOWED_ORIGIN ou -Dcors.allowed.origin),
+    // avec "*" par défaut pour le développement local du frontend React.
+    private static final String CORS_ALLOWED_ORIGIN = resoudreCorsAllowedOrigin();
+
     private final Gson gson = new GsonBuilder()
             .registerTypeAdapter(LocalDate.class,
                     (JsonSerializer<LocalDate>) (src, type, ctx) -> new JsonPrimitive(src.toString()))
@@ -51,6 +56,7 @@ public class Router {
             .create();
 
     private final ProduitController produitController = new ProduitController();
+    private final AdminController adminController = new AdminController();
     private final AuthController authController = new AuthController();
     private final ClientController clientController = new ClientController();
     private final CommercantController commercantController = new CommercantController();
@@ -60,11 +66,13 @@ public class Router {
     private final JwtUtil jwtUtil = new JwtUtil();
 
     public void dispatcher(HttpExchange exchange) throws IOException {
-        // En-têtes CORS universels pour intégration web / frontend
-        exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+        // En-têtes CORS appliqués à toutes les réponses (succès et erreurs).
+        exchange.getResponseHeaders().set("Access-Control-Allow-Origin", CORS_ALLOWED_ORIGIN);
         exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
         exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        exchange.getResponseHeaders().set("Access-Control-Max-Age", "86400");
 
+        // Preflight : traité avant toute vérification de token JWT.
         if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
             exchange.sendResponseHeaders(204, -1);
             exchange.close();
@@ -223,6 +231,64 @@ public class Router {
         // Toutes les autres routes sous /admin nécessitent un token ADMIN valide
         JwtUtil.JwtClaims adminClaims = exigerTokenAdmin(exchange);
 
+        if (segments.length >= 3 && "utilisateurs".equalsIgnoreCase(segments[2])) {
+            // GET /admin/utilisateurs?role=CLIENT&statut=ACTIF
+            if (segments.length == 3) {
+                if (!"GET".equalsIgnoreCase(methode)) {
+                    throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                }
+                String role = extraireParametre(exchange.getRequestURI().getQuery(), "role");
+                String statut = extraireParametre(exchange.getRequestURI().getQuery(), "statut");
+                return new Reponse(200, gson.toJson(adminController.listerUtilisateurs(role, statut)));
+            }
+
+            // PUT /admin/utilisateurs/{id}/activer|desactiver
+            if (segments.length == 5) {
+                int id = parseId(segments[3]);
+                String action = segments[4];
+                if (!"PUT".equalsIgnoreCase(methode) && !"PATCH".equalsIgnoreCase(methode)) {
+                    throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                }
+                return switch (action) {
+                    case "activer" ->
+                            new Reponse(200, gson.toJson(adminController.activerUtilisateur(id)));
+                    case "desactiver" ->
+                            new Reponse(200, gson.toJson(
+                                    adminController.desactiverUtilisateur(id, adminClaims.id())));
+                    default -> throw new ResourceNotFoundException(
+                            "Action admin utilisateur inconnue: " + action);
+                };
+            }
+
+            throw new ResourceNotFoundException("Route admin utilisateur inconnue.");
+        }
+
+        if (segments.length >= 3 && "reservations".equalsIgnoreCase(segments[2])) {
+            // GET /admin/reservations?statut=EN_ATTENTE&clientId=3&commercantId=2
+            if (segments.length == 3) {
+                if (!"GET".equalsIgnoreCase(methode)) {
+                    throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                }
+                String query = exchange.getRequestURI().getQuery();
+                return new Reponse(200, gson.toJson(adminController.listerReservations(
+                        extraireParametre(query, "statut"),
+                        parseEntierOptionnel(extraireParametre(query, "clientId")),
+                        parseEntierOptionnel(extraireParametre(query, "commercantId"))
+                )));
+            }
+
+            // GET /admin/reservations/{id}
+            if (segments.length == 4) {
+                if (!"GET".equalsIgnoreCase(methode)) {
+                    throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                }
+                int id = parseId(segments[3]);
+                return new Reponse(200, gson.toJson(adminController.obtenirReservation(id)));
+            }
+
+            throw new ResourceNotFoundException("Route admin réservation inconnue.");
+        }
+
         if (segments.length >= 3 && "commercants".equalsIgnoreCase(segments[2])) {
             if (segments.length == 3) {
                 // GET /admin/commercants (?statut=EN_ATTENTE)
@@ -338,8 +404,13 @@ public class Router {
 
     private Reponse routesCommercantPublic(String methode, String[] segments, HttpExchange exchange) throws IOException {
         if (segments.length == 2) {
-            return switch (methode) {
-                case "GET" -> new Reponse(200, gson.toJson(commercantController.lister("ACTIF")));
+            return switch (methode.toUpperCase()) {
+                case "GET" -> {
+                    // GET /commercants?recherche=... : données publiques uniquement.
+                    String recherche = extraireParametre(exchange.getRequestURI().getQuery(), "recherche");
+                    yield new Reponse(200, gson.toJson(
+                            commercantController.listerActifsPublics(recherche)));
+                }
                 case "POST" -> {
                     CommercantRegisterRequest req = lireCorps(exchange, CommercantRegisterRequest.class);
                     yield new Reponse(201, gson.toJson(commercantController.inscrire(req)));
@@ -619,6 +690,14 @@ public class Router {
         String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
         String token = authService.extraireToken(authHeader);
         return jwtUtil.validerToken(token);
+    }
+
+    private static String resoudreCorsAllowedOrigin() {
+        String origine = System.getenv("CORS_ALLOWED_ORIGIN");
+        if (origine == null || origine.isBlank()) {
+            origine = System.getProperty("cors.allowed.origin");
+        }
+        return (origine == null || origine.isBlank()) ? "*" : origine.trim();
     }
 
     private String extraireParametre(String query, String paramName) {

@@ -65,6 +65,47 @@ public class ReservationDAO {
         return lister(SELECT_RESERVATION + "WHERE prod.commercant_id = ? ORDER BY cmd.id DESC", commercantId);
     }
 
+    /**
+     * Supervision administrateur : toutes les réservations de la plateforme avec
+     * filtres optionnels sur le statut, le client et le commerçant.
+     */
+    public List<ReservationResponse> listerAvecFiltres(String statut, Integer clientId, Integer commercantId) {
+        List<ReservationResponse> reservations = new ArrayList<>();
+        StringBuilder sql = new StringBuilder(SELECT_RESERVATION).append("WHERE 1 = 1");
+        List<Object> parametres = new ArrayList<>();
+
+        if (statut != null && !statut.isBlank()) {
+            sql.append(" AND cmd.statut = ?");
+            parametres.add(statut.trim().toUpperCase());
+        }
+        if (clientId != null) {
+            sql.append(" AND cmd.client_id = ?");
+            parametres.add(clientId);
+        }
+        if (commercantId != null) {
+            sql.append(" AND prod.commercant_id = ?");
+            parametres.add(commercantId);
+        }
+        sql.append(" ORDER BY cmd.id DESC");
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql.toString())) {
+
+            for (int i = 0; i < parametres.size(); i++) {
+                stmt.setObject(i + 1, parametres.get(i));
+            }
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    reservations.add(mapResultSet(rs));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return reservations;
+    }
+
     private List<ReservationResponse> lister(String sql, int parametre) {
         List<ReservationResponse> reservations = new ArrayList<>();
         try (Connection conn = DatabaseConnection.getConnection();

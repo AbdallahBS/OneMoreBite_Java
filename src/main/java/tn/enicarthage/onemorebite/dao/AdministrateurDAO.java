@@ -14,7 +14,7 @@ import java.util.Optional;
 public class AdministrateurDAO {
 
     public Optional<Administrateur> trouverParEmail(String email) {
-        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone " +
+        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, u.statut " +
                      "FROM utilisateur u " +
                      "INNER JOIN administrateur a ON u.id = a.id " +
                      "WHERE u.email = ?";
@@ -35,7 +35,7 @@ public class AdministrateurDAO {
     }
 
     public Optional<Administrateur> trouverParId(int id) {
-        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone " +
+        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, u.statut " +
                      "FROM utilisateur u " +
                      "INNER JOIN administrateur a ON u.id = a.id " +
                      "WHERE u.id = ?";
@@ -77,7 +77,7 @@ public class AdministrateurDAO {
 
         try (Connection conn = DatabaseConnection.getConnection()) {
             // 1. Migration de l'ancien admin si présent
-            String sqlMigrateOld = "UPDATE utilisateur SET email = ?, nom = ?, mot_de_passe = ? " +
+            String sqlMigrateOld = "UPDATE utilisateur SET email = ?, nom = ?, mot_de_passe = ?, statut = 'ACTIF' " +
                                   "WHERE email = 'admin@onemorebite.tn'";
             try (PreparedStatement stmt = conn.prepareStatement(sqlMigrateOld)) {
                 stmt.setString(1, defaultEmail);
@@ -103,6 +103,10 @@ public class AdministrateurDAO {
                         if (!PasswordUtil.verifier(defaultPassword, currentPassword) || !PasswordUtil.estHashBCrypt(currentPassword)) {
                             mettreAJourMotDePasse(adminId, motDePasseHache);
                         }
+                        // Une base historique peut avoir créé cet administrateur
+                        // avec le statut par défaut INACTIF : le compte principal
+                        // doit toujours pouvoir se connecter.
+                        activerAdminPrincipal(adminId);
                         return;
                     }
                 }
@@ -131,12 +135,14 @@ public class AdministrateurDAO {
                 }
             } else {
                 // 4. Insérer le nouvel utilisateur avec son mot de passe haché en BCrypt
-                String sqlInsertUser = "INSERT INTO utilisateur (nom, email, mot_de_passe, telephone) VALUES (?, ?, ?, ?)";
+                String sqlInsertUser = "INSERT INTO utilisateur (nom, email, mot_de_passe, telephone, statut) " +
+                                       "VALUES (?, ?, ?, ?, ?)";
                 try (PreparedStatement stmt = conn.prepareStatement(sqlInsertUser, Statement.RETURN_GENERATED_KEYS)) {
                     stmt.setString(1, "Admin Enicar");
                     stmt.setString(2, defaultEmail);
                     stmt.setString(3, motDePasseHache);
                     stmt.setString(4, "71000000");
+                    stmt.setString(5, StatutCompteUtilisateur.ACTIF);
                     stmt.executeUpdate();
 
                     try (ResultSet keys = stmt.getGeneratedKeys()) {
@@ -211,12 +217,26 @@ public class AdministrateurDAO {
     }
 
     private Administrateur mapResultSet(ResultSet rs) throws SQLException {
-        return new Administrateur(
+        Administrateur admin = new Administrateur(
                 rs.getInt("id"),
                 rs.getString("nom"),
                 rs.getString("email"),
                 rs.getString("mot_de_passe"),
                 rs.getString("telephone")
         );
+        admin.setStatutCompte(StatutCompteUtilisateur.versApi(rs.getString("statut")));
+        return admin;
+    }
+
+    private void activerAdminPrincipal(int adminId) {
+        String sql = "UPDATE utilisateur SET statut = ? WHERE id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, StatutCompteUtilisateur.ACTIF);
+            stmt.setInt(2, adminId);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 }

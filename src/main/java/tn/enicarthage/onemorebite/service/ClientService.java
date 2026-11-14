@@ -1,6 +1,7 @@
 package tn.enicarthage.onemorebite.service;
 
 import tn.enicarthage.onemorebite.dao.ClientDAO;
+import tn.enicarthage.onemorebite.dao.StatutCompteUtilisateur;
 import tn.enicarthage.onemorebite.dto.ClientRegisterRequest;
 import tn.enicarthage.onemorebite.dto.ClientResponse;
 import tn.enicarthage.onemorebite.dto.LoginRequest;
@@ -69,6 +70,11 @@ public class ClientService {
 
         if (!PasswordUtil.verifier(password, client.getMotDePasse())) {
             throw new AuthenticationException("Identifiants invalides : Mot de passe incorrect.");
+        }
+
+        if (StatutCompteUtilisateur.estDesactive(client.getStatutCompte())) {
+            throw new AuthenticationException(
+                    "Votre compte a été désactivé par l'administrateur. Veuillez le contacter.");
         }
 
         // Migration transparente des anciens mots de passe stockés en clair.

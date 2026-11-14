@@ -28,7 +28,7 @@ public class ClientDAO {
     }
 
     public Optional<Client> trouverParEmail(String email) {
-        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone " +
+        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, u.statut " +
                      "FROM utilisateur u " +
                      "INNER JOIN client c ON u.id = c.id " +
                      "WHERE u.email = ?";
@@ -49,7 +49,7 @@ public class ClientDAO {
     }
 
     public Optional<Client> trouverParId(int id) {
-        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone " +
+        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, u.statut " +
                      "FROM utilisateur u " +
                      "INNER JOIN client c ON u.id = c.id " +
                      "WHERE u.id = ?";
@@ -70,7 +70,8 @@ public class ClientDAO {
     }
 
     public Client creer(Client client) {
-        String sqlUser = "INSERT INTO utilisateur (nom, email, mot_de_passe, telephone) VALUES (?, ?, ?, ?)";
+        String sqlUser = "INSERT INTO utilisateur (nom, email, mot_de_passe, telephone, statut) " +
+                         "VALUES (?, ?, ?, ?, ?)";
         String sqlClient = "INSERT INTO client (id) VALUES (?)";
 
         Connection conn = null;
@@ -84,6 +85,10 @@ public class ClientDAO {
                 stmtUser.setString(2, client.getEmail());
                 stmtUser.setString(3, client.getMotDePasse());
                 stmtUser.setString(4, client.getTelephone());
+                // Un client est actif dès son inscription. On ne dépend pas du
+                // DEFAULT de la colonne : certaines bases historiques utilisent
+                // INACTIF par défaut pour le workflow commerçant.
+                stmtUser.setString(5, StatutCompteUtilisateur.ACTIF);
                 stmtUser.executeUpdate();
 
                 try (ResultSet keys = stmtUser.getGeneratedKeys()) {
@@ -215,12 +220,14 @@ public class ClientDAO {
     }
 
     private Client mapResultSet(ResultSet rs) throws SQLException {
-        return new Client(
+        Client client = new Client(
                 rs.getInt("id"),
                 rs.getString("nom"),
                 rs.getString("email"),
                 rs.getString("mot_de_passe"),
                 rs.getString("telephone")
         );
+        client.setStatutCompte(StatutCompteUtilisateur.versApi(rs.getString("statut")));
+        return client;
     }
 }

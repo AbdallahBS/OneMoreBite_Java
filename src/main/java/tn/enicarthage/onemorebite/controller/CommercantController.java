@@ -1,5 +1,6 @@
 package tn.enicarthage.onemorebite.controller;
 
+import tn.enicarthage.onemorebite.dto.CommercantPublicResponse;
 import tn.enicarthage.onemorebite.dto.CommercantRegisterRequest;
 import tn.enicarthage.onemorebite.dto.CommercantResponse;
 import tn.enicarthage.onemorebite.dto.LoginRequest;
@@ -22,6 +23,10 @@ public class CommercantController {
 
     public List<CommercantResponse> lister(String statutFiltre) {
         return commercantService.lister(statutFiltre);
+    }
+
+    public List<CommercantPublicResponse> listerActifsPublics(String recherche) {
+        return commercantService.listerActifsPublics(recherche);
     }
 
     public CommercantResponse obtenir(int id) {

@@ -27,7 +27,8 @@ public class CommercantDAO {
     }
 
     public Optional<Commercant> trouverParEmail(String email) {
-        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, c.localisation, c.statut " +
+        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, c.localisation, c.statut, " +
+                     "       u.statut AS statut_compte " +
                      "FROM utilisateur u " +
                      "INNER JOIN commercant c ON u.id = c.id " +
                      "WHERE u.email = ?";
@@ -48,7 +49,8 @@ public class CommercantDAO {
     }
 
     public Optional<Commercant> trouverParId(int id) {
-        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, c.localisation, c.statut " +
+        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, c.localisation, c.statut, " +
+                     "       u.statut AS statut_compte " +
                      "FROM utilisateur u " +
                      "INNER JOIN commercant c ON u.id = c.id " +
                      "WHERE u.id = ?";
@@ -69,8 +71,10 @@ public class CommercantDAO {
     }
 
     public Commercant creer(Commercant c) {
-        String sqlUser = "INSERT INTO utilisateur (nom, email, mot_de_passe, telephone) VALUES (?, ?, ?, ?)";
+        String sqlUser = "INSERT INTO utilisateur (nom, email, mot_de_passe, telephone, statut) VALUES (?, ?, ?, ?, ?)";
         String sqlCommercant = "INSERT INTO commercant (id, localisation, statut) VALUES (?, ?, ?)";
+        String statutInitial = c.getStatut() != null ? c.getStatut() : "EN_ATTENTE";
+        String statutCompteInitial = StatutCompteUtilisateur.versBase(statutInitial);
 
         Connection conn = null;
         try {
@@ -83,6 +87,7 @@ public class CommercantDAO {
                 stmtUser.setString(2, c.getEmail());
                 stmtUser.setString(3, c.getMotDePasse());
                 stmtUser.setString(4, c.getTelephone());
+                stmtUser.setString(5, statutCompteInitial);
                 stmtUser.executeUpdate();
 
                 try (ResultSet keys = stmtUser.getGeneratedKeys()) {
@@ -98,7 +103,7 @@ public class CommercantDAO {
             try (PreparedStatement stmtComm = conn.prepareStatement(sqlCommercant)) {
                 stmtComm.setInt(1, userId);
                 stmtComm.setString(2, c.getLocalisation());
-                stmtComm.setString(3, c.getStatut() != null ? c.getStatut() : "EN_ATTENTE");
+                stmtComm.setString(3, statutInitial);
                 stmtComm.executeUpdate();
             }
 
@@ -128,7 +133,8 @@ public class CommercantDAO {
 
     public List<Commercant> listerTous() {
         List<Commercant> commercants = new ArrayList<>();
-        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, c.localisation, c.statut " +
+        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, c.localisation, c.statut, " +
+                     "       u.statut AS statut_compte " +
                      "FROM utilisateur u " +
                      "INNER JOIN commercant c ON u.id = c.id " +
                      "ORDER BY u.id DESC";
@@ -148,7 +154,8 @@ public class CommercantDAO {
 
     public List<Commercant> listerParStatut(String statut) {
         List<Commercant> commercants = new ArrayList<>();
-        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, c.localisation, c.statut " +
+        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, c.localisation, c.statut, " +
+                     "       u.statut AS statut_compte " +
                      "FROM utilisateur u " +
                      "INNER JOIN commercant c ON u.id = c.id " +
                      "WHERE c.statut = ? " +
@@ -169,18 +176,100 @@ public class CommercantDAO {
         return commercants;
     }
 
+    /**
+     * Met à jour le statut métier du commerçant et le statut du compte dans la
+     * table utilisateur dans une même transaction. Les deux valeurs restent
+     * ainsi cohérentes pour le workflow de validation administrateur.
+     */
     public boolean mettreAJourStatut(int id, String nouveauStatut) {
-        String sql = "UPDATE commercant SET statut = ? WHERE id = ?";
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        String sqlCommercant = "UPDATE commercant SET statut = ? WHERE id = ?";
+        String sqlUtilisateur = "UPDATE utilisateur SET statut = ? WHERE id = ?";
 
-            stmt.setString(1, nouveauStatut);
-            stmt.setInt(2, id);
-            return stmt.executeUpdate() > 0;
+        Connection conn = null;
+        try {
+            conn = DatabaseConnection.getConnection();
+            conn.setAutoCommit(false);
+
+            boolean misAJour;
+            try (PreparedStatement stmt = conn.prepareStatement(sqlCommercant)) {
+                stmt.setString(1, nouveauStatut);
+                stmt.setInt(2, id);
+                misAJour = stmt.executeUpdate() > 0;
+            }
+
+            if (!misAJour) {
+                conn.rollback();
+                return false;
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement(sqlUtilisateur)) {
+                stmt.setString(1, StatutCompteUtilisateur.versBase(nouveauStatut));
+                stmt.setInt(2, id);
+                stmt.executeUpdate();
+            }
+
+            conn.commit();
+            return true;
         } catch (SQLException e) {
+            if (conn != null) {
+                try {
+                    conn.rollback();
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+            }
             e.printStackTrace();
             return false;
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.setAutoCommit(true);
+                    conn.close();
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+            }
         }
+    }
+
+    /**
+     * Liste publique des commerçants réellement actifs : le statut métier et le
+     * statut du compte doivent tous deux être ACTIF.
+     */
+    public List<Commercant> listerActifsAvecRecherche(String recherche) {
+        List<Commercant> commercants = new ArrayList<>();
+        StringBuilder sql = new StringBuilder(
+                "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, c.localisation, c.statut, " +
+                "       u.statut AS statut_compte " +
+                "FROM utilisateur u " +
+                "INNER JOIN commercant c ON u.id = c.id " +
+                "WHERE c.statut = 'ACTIF' AND u.statut = 'ACTIF'");
+        List<Object> parametres = new ArrayList<>();
+
+        if (recherche != null && !recherche.isBlank()) {
+            sql.append(" AND (u.nom LIKE ? OR c.localisation LIKE ?)");
+            String motif = "%" + recherche.trim() + "%";
+            parametres.add(motif);
+            parametres.add(motif);
+        }
+        sql.append(" ORDER BY u.nom ASC");
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql.toString())) {
+
+            for (int i = 0; i < parametres.size(); i++) {
+                stmt.setObject(i + 1, parametres.get(i));
+            }
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    commercants.add(mapResultSet(rs));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return commercants;
     }
 
     /**
@@ -261,7 +350,7 @@ public class CommercantDAO {
     }
 
     private Commercant mapResultSet(ResultSet rs) throws SQLException {
-        return new Commercant(
+        Commercant commercant = new Commercant(
                 rs.getInt("id"),
                 rs.getString("nom"),
                 rs.getString("email"),
@@ -270,5 +359,8 @@ public class CommercantDAO {
                 rs.getString("localisation"),
                 rs.getString("statut")
         );
+        commercant.setStatutCompte(StatutCompteUtilisateur.resoudreStatutCommercant(
+                rs.getString("statut_compte"), rs.getString("statut")));
+        return commercant;
     }
 }

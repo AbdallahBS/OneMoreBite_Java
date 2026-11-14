@@ -6,6 +6,9 @@ public class Utilisateur {
     private String email;
     private String motDePasse;
     private String telephone;
+    // Statut du compte (ACTIF, EN_ATTENTE, REJETE, DESACTIVE). Distinct du
+    // statut métier d'un commerçant, même si les deux sont synchronisés.
+    private String statutCompte = "ACTIF";
 
     public Utilisateur() {}
 
@@ -31,4 +34,7 @@ public class Utilisateur {
 
     public String getTelephone() { return telephone; }
     public void setTelephone(String telephone) { this.telephone = telephone; }
+
+    public String getStatutCompte() { return statutCompte; }
+    public void setStatutCompte(String statutCompte) { this.statutCompte = statutCompte; }
 }

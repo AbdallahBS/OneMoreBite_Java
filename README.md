@@ -14,6 +14,10 @@ API Java 17 (HTTP server natif) pour la gestion d'une plateforme anti-gaspillage
 - Réservations clients : création, consultation, modification et annulation (`EN_ATTENTE` uniquement)
 - Réservations commerçants : consultation des réservations reçues, confirmation et refus (`EN_ATTENTE` uniquement)
 - Gestion des avis clients sur les commerçants : création, liste publique, filtre, note moyenne, modification et suppression modérée
+- Supervision administrateur des utilisateurs : liste filtrée par rôle/statut, activation et désactivation sécurisées
+- Supervision administrateur de toutes les réservations de la plateforme avec filtres
+- Endpoint public des commerçants actifs pour le frontend React
+- CORS complet (y compris preflight `OPTIONS`) et port HTTP configurable
 
 ## Prérequis
 
@@ -25,7 +29,11 @@ API Java 17 (HTTP server natif) pour la gestion d'une plateforme anti-gaspillage
 
 1. Démarrer MySQL.
 2. Exécuter `src/main/resources/database/database.sql`, ou lancer la classe `DatabaseConnection` qui crée la base et charge le script.
-3. Lancer `Main` (serveur sur `http://localhost:8081`).
+3. Lancer `Main` (serveur sur `http://localhost:8081` par défaut).
+
+Le port HTTP peut être changé avec la variable d'environnement `PORT` (ou la
+propriété système `-Dserver.port=...`). La valeur par défaut `8081` correspond à
+la variable `base_url` de la collection Postman.
 
 Comptes de démonstration (script SQL) :
 
@@ -94,9 +102,13 @@ pour `POST /auth/logout`.
 | --- | --- | --- |
 | GET | `/produits` | Liste des produits (`?commercantId=2&disponible=true&recherche=panier`) |
 | GET | `/produits/{id}` | Détail d'un produit |
-| GET | `/commercants` | Liste des commerçants actifs |
+| GET | `/commercants` | Commerçants `ACTIF` (`?recherche=...` sur le nom ou la localisation) |
 | GET | `/avis` | Liste publique des avis (`?commercantId=2`) |
 | GET | `/commercants/{id}/avis` | Avis d'un commerçant, note moyenne et nombre total |
+
+`GET /commercants` est public et retourne uniquement des données non sensibles :
+`id`, `nom`, `localisation`, `telephone`. L'email, le mot de passe et les statuts
+internes ne sont jamais exposés.
 
 ### Avis (Client, Bearer Token `CLIENT`)
 
@@ -168,6 +180,34 @@ aucun paiement en ligne n'est géré par l'API.
 | PUT / PATCH | `/admin/produits/{id}/stock` | Corriger le stock |
 | DELETE | `/admin/produits/{id}` | Supprimer un produit |
 | GET | `/admin/produits/statistiques` | Indicateurs de gestion des produits |
+| GET | `/admin/utilisateurs` | Supervision des comptes (`?role=CLIENT|COMMERCANT|ADMIN&statut=ACTIF|EN_ATTENTE|REJETE|DESACTIVE`) |
+| PUT / PATCH | `/admin/utilisateurs/{id}/activer` | Passer le compte à `ACTIF` |
+| PUT / PATCH | `/admin/utilisateurs/{id}/desactiver` | Passer le compte à `DESACTIVE` |
+| GET | `/admin/reservations` | Toutes les réservations (`?statut=...&clientId=...&commercantId=...`) |
+| GET | `/admin/reservations/{id}` | Détail complet d'une réservation |
+
+Les réponses de `/admin/utilisateurs` utilisent un DTO sécurisé sans
+`motDePasse`. Un administrateur ne peut pas désactiver son propre compte ni le
+compte `ADMIN` principal (`admin@enicar.com`) : la réponse est `403` avec un
+message explicite. La connexion des comptes `DESACTIVE` est refusée sur
+`/auth/client/login`, `/auth/commercant/login` et `/auth/login`.
+
+Les routes `/reservations/*` restent interdites à l'administrateur (`403`) ;
+la supervision passe exclusivement par `/admin/reservations`.
+
+## CORS et frontend React
+
+Toutes les réponses HTTP (succès et erreurs `400/401/403/404/500`) contiennent :
+
+```text
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Authorization
+```
+
+Les requêtes `OPTIONS` (preflight) sont interceptées avant toute vérification
+JWT et retournent `204 No Content`. L'origine peut être restreinte avec la
+variable d'environnement `CORS_ALLOWED_ORIGIN` (ou `-Dcors.allowed.origin=...`).
 
 ## Upload d'image Cloudinary
 
@@ -196,6 +236,7 @@ Importer `OneMoreBite.postman_collection.json`. La collection contient :
 7. Réservations (Commerçant)
 8. Réservations — Sécurité & transitions
 9. Gestion des Avis
+10. Administration, Commerçants publics & CORS
 
 Les scripts de test enregistrent automatiquement les tokens et les identifiants de produits dans les variables de collection (`admin_token`, `commercant_token`, `client_token`, `produit_id`, `admin_produit_id`, `image_url`, `image_public_id`, `reservation_id`, `avis_id`, etc.).
 
@@ -211,3 +252,8 @@ Pour une base existante créée avant le module de gestion des avis, exécuter
 `src/main/resources/database/migration_avis_commercant.sql`. Cette migration
 rattache les avis existants au commerçant (via `produit.commercant_id`) et
 remplace `avis.produit_id` par `avis.commercant_id`.
+
+Pour une base existante créée avant la supervision des utilisateurs, exécuter
+`src/main/resources/database/migration_utilisateur_statut.sql`. Cette migration
+ajoute `utilisateur.statut` (`ACTIF`, `EN_ATTENTE`, `REJETE`, `DESACTIVE`) et
+aligne le statut des commerçants existants sur leur statut métier.

@@ -1,6 +1,8 @@
 package tn.enicarthage.onemorebite.service;
 
 import tn.enicarthage.onemorebite.dao.CommercantDAO;
+import tn.enicarthage.onemorebite.dao.StatutCompteUtilisateur;
+import tn.enicarthage.onemorebite.dto.CommercantPublicResponse;
 import tn.enicarthage.onemorebite.dto.CommercantRegisterRequest;
 import tn.enicarthage.onemorebite.dto.CommercantResponse;
 import tn.enicarthage.onemorebite.dto.LoginRequest;
@@ -70,6 +72,11 @@ public class CommercantService {
             throw new AuthenticationException("Identifiants invalides : Mot de passe incorrect.");
         }
 
+        if (StatutCompteUtilisateur.estDesactive(c.getStatutCompte())) {
+            throw new AuthenticationException(
+                    "Votre compte a été désactivé par l'administrateur. Veuillez le contacter.");
+        }
+
         if ("EN_ATTENTE".equalsIgnoreCase(c.getStatut())) {
             throw new AuthenticationException("Votre compte est en attente de validation par l'administrateur.");
         }
@@ -100,6 +107,17 @@ public class CommercantService {
             liste = commercantDAO.listerTous();
         }
         return liste.stream().map(this::mapToResponse).toList();
+    }
+
+    /**
+     * Liste publique destinée au frontend : uniquement les commerçants dont le
+     * compte et le statut métier sont ACTIF, avec des données non sensibles.
+     */
+    public List<CommercantPublicResponse> listerActifsPublics(String recherche) {
+        return commercantDAO.listerActifsAvecRecherche(recherche)
+                .stream()
+                .map(this::mapToPublicResponse)
+                .toList();
     }
 
     public CommercantResponse obtenir(int id) {
@@ -134,6 +152,15 @@ public class CommercantService {
                 c.getTelephone(),
                 c.getLocalisation(),
                 c.getStatut()
+        );
+    }
+
+    public CommercantPublicResponse mapToPublicResponse(Commercant c) {
+        return new CommercantPublicResponse(
+                c.getId(),
+                c.getNom(),
+                c.getLocalisation(),
+                c.getTelephone()
         );
     }
 }

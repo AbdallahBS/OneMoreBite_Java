@@ -9,6 +9,7 @@ CREATE TABLE utilisateur (
                              nom VARCHAR(100) NOT NULL,
                              email VARCHAR(255) NOT NULL UNIQUE,
                              mot_de_passe VARCHAR(255) NOT NULL,
+                             statut ENUM('ACTIF', 'EN_ATTENTE', 'REJETE', 'DESACTIVE') NOT NULL DEFAULT 'ACTIF',
                              telephone VARCHAR(30),
                              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -24,7 +25,7 @@ CREATE TABLE administrateur (
 CREATE TABLE commercant (
                             id INT PRIMARY KEY,
                             localisation VARCHAR(255) NOT NULL,
-                            statut ENUM('EN_ATTENTE', 'ACTIF', 'REJETE') DEFAULT 'EN_ATTENTE',
+                            statut ENUM('EN_ATTENTE', 'ACTIF', 'REJETE', 'DESACTIVE') DEFAULT 'EN_ATTENTE',
                             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                             CONSTRAINT fk_commercant_utilisateur FOREIGN KEY (id) REFERENCES utilisateur(id) ON DELETE CASCADE
@@ -83,10 +84,10 @@ CREATE TABLE avis (
 
 -- 2. Insertions ordonnées
 
-INSERT INTO utilisateur (id, nom, email, mot_de_passe, telephone) VALUES
-                                                                      (1, 'Admin Enicar', 'admin@enicar.com', 'admin', '71000000'),
-                                                                      (2, 'Boulangerie Ben Ali', 'contact@benali.tn', 'pass123', '71111111'),
-                                                                      (3, 'Sami Client', 'sami@gmail.com', 'client123', '20222222');
+INSERT INTO utilisateur (id, nom, email, mot_de_passe, statut, telephone) VALUES
+                                                                      (1, 'Admin Enicar', 'admin@enicar.com', 'admin', 'ACTIF', '71000000'),
+                                                                      (2, 'Boulangerie Ben Ali', 'contact@benali.tn', 'pass123', 'ACTIF', '71111111'),
+                                                                      (3, 'Sami Client', 'sami@gmail.com', 'client123', 'ACTIF', '20222222');
 
 INSERT INTO administrateur (id) VALUES (1);
 INSERT INTO commercant (id, localisation, statut) VALUES (2, 'Tunis, Centre Ville', 'ACTIF');

@@ -7,7 +7,23 @@ import tn.enicarthage.onemorebite.controller.AuthController;
 
 public class Main {
 
-    private static final int PORT = 8081;
+    private static final int PORT = resoudrePort();
+
+    private static int resoudrePort() {
+        String port = System.getenv("PORT");
+        if (port == null || port.isBlank()) {
+            port = System.getProperty("server.port");
+        }
+        if (port == null || port.isBlank()) {
+            return 8081;
+        }
+        try {
+            return Integer.parseInt(port.trim());
+        } catch (NumberFormatException e) {
+            System.out.println("Port invalide '" + port + "', utilisation du port 8081.");
+            return 8081;
+        }
+    }
 
     public static void main(String[] args) {
         if (!testerConnexion()) {
@@ -53,6 +69,12 @@ public class Main {
             System.out.println("  GET  http://localhost:" + PORT + "/admin/commercants         (Admin: Liste des commerçants ?statut=EN_ATTENTE)");
             System.out.println("  PUT  http://localhost:" + PORT + "/admin/commercants/:id/accepter (Admin: Valider compte -> ACTIF)");
             System.out.println("  PUT  http://localhost:" + PORT + "/admin/commercants/:id/rejeter  (Admin: Rejeter compte -> REJETE)");
+            System.out.println("  GET  http://localhost:" + PORT + "/admin/utilisateurs        (Admin: Supervision utilisateurs ?role=CLIENT&statut=ACTIF)");
+            System.out.println("  PUT  http://localhost:" + PORT + "/admin/utilisateurs/:id/activer   (Admin: Activer un compte)");
+            System.out.println("  PUT  http://localhost:" + PORT + "/admin/utilisateurs/:id/desactiver (Admin: Désactiver un compte)");
+            System.out.println("  GET  http://localhost:" + PORT + "/admin/reservations       (Admin: Toutes les réservations + filtres)");
+            System.out.println("  GET  http://localhost:" + PORT + "/admin/reservations/:id   (Admin: Détail d'une réservation)");
+            System.out.println("  GET  http://localhost:" + PORT + "/commercants              (Public: commerçants ACTIF ?recherche=...)");
             System.out.println("  GET  http://localhost:" + PORT + "/produits                  (Liste publique des produits ?disponible=true&commercantId=2&recherche=...)");
             System.out.println("  GET  http://localhost:" + PORT + "/produits/:id              (Détail d'un produit)");
             System.out.println("  POST http://localhost:" + PORT + "/produits                  (Commerçant: créer un produit - Bearer Token)");

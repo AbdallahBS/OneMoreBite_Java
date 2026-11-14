@@ -6811,7 +6811,796 @@
           ]
         }
       ]
+    },
+    {
+      "name": "10. Administration, Commerçants publics & CORS",
+      "item": [
+        {
+          "name": "1. Login Admin (prérequis)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Connexion Admin réussie\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Token JWT et rôle ADMIN\", function () {",
+                  "    pm.expect(jsonData).to.have.property(\"token\");",
+                  "    pm.expect(jsonData.role).to.eql(\"ADMIN\");",
+                  "});",
+                  "",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set(\"admin_token\", jsonData.token);",
+                  "    pm.collectionVariables.set(\"admin_id\", jsonData.id.toString());",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@enicar.com\",\n  \"motDePasse\": \"admin\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Connexion de l'administrateur. Enregistre {{admin_token}} et {{admin_id}} pour les tests de supervision."
+          },
+          "response": []
+        },
+        {
+          "name": "2. Admin: Lister tous les utilisateurs (GET /admin/utilisateurs)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Liste des utilisateurs\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Retourne un tableau d'utilisateurs sécurisés\", function () {",
+                  "    pm.expect(jsonData).to.be.an(\"array\");",
+                  "    jsonData.forEach(function (u) {",
+                  "        pm.expect(u).to.not.have.property(\"motDePasse\");",
+                  "        pm.expect(u).to.have.property(\"id\");",
+                  "        pm.expect(u).to.have.property(\"role\");",
+                  "        pm.expect(u).to.have.property(\"statut\");",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/utilisateurs",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "utilisateurs"
+              ]
+            },
+            "description": "Route ADMIN : liste tous les comptes (CLIENT, COMMERCANT, ADMIN) sans jamais exposer le mot de passe."
+          },
+          "response": []
+        },
+        {
+          "name": "3. Admin: Filtrer utilisateurs role=CLIENT&statut=ACTIF",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Filtres appliqués\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Tous les utilisateurs retournés sont CLIENT et ACTIF\", function () {",
+                  "    pm.expect(jsonData).to.be.an(\"array\");",
+                  "    jsonData.forEach(function (u) {",
+                  "        pm.expect(u.role).to.eql(\"CLIENT\");",
+                  "        pm.expect(u.statut).to.eql(\"ACTIF\");",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/utilisateurs?role=CLIENT&statut=ACTIF",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "utilisateurs"
+              ],
+              "query": [
+                {
+                  "key": "role",
+                  "value": "CLIENT"
+                },
+                {
+                  "key": "statut",
+                  "value": "ACTIF"
+                }
+              ]
+            },
+            "description": "Filtres optionnels ?role=CLIENT|COMMERCANT|ADMIN et ?statut=ACTIF|EN_ATTENTE|REJETE|DESACTIVE."
+          },
+          "response": []
+        },
+        {
+          "name": "4. Créer un client de supervision (prérequis)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set(\"admin_supervision_client_email\", \"supervision.\" + Date.now() + \"@example.com\");",
+                  "pm.collectionVariables.set(\"admin_supervision_client_password\", \"SupervisionPass123\");"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 201 - Client de supervision créé\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set(\"admin_supervision_client_id\", jsonData.id.toString());",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nom\": \"Client Supervision\",\n  \"email\": \"{{admin_supervision_client_email}}\",\n  \"motDePasse\": \"{{admin_supervision_client_password}}\",\n  \"telephone\": \"20777777\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/client/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "client",
+                "register"
+              ]
+            },
+            "description": "Crée un compte client isolé pour tester la désactivation puis la réactivation par l'administrateur."
+          },
+          "response": []
+        },
+        {
+          "name": "5. Admin: Désactiver un utilisateur (PUT .../desactiver)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Compte désactivé\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Le statut retourné est DESACTIVE\", function () {",
+                  "    pm.expect(jsonData.statut).to.eql(\"DESACTIVE\");",
+                  "    pm.expect(jsonData).to.not.have.property(\"motDePasse\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/utilisateurs/{{admin_supervision_client_id}}/desactiver",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "utilisateurs",
+                "{{admin_supervision_client_id}}",
+                "desactiver"
+              ]
+            },
+            "description": "Passe le statut du compte à DESACTIVE. Un administrateur ne peut pas désactiver son propre compte ni le compte ADMIN principal."
+          },
+          "response": []
+        },
+        {
+          "name": "6. Client désactivé - Connexion refusée (401/403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 401 ou 403 - Connexion refusée\", function () {",
+                  "    pm.expect([401, 403]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "pm.test(\"Message explicite de compte désactivé\", function () {",
+                  "    pm.expect(pm.response.json()).to.have.property(\"erreur\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{admin_supervision_client_email}}\",\n  \"motDePasse\": \"{{admin_supervision_client_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/client/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "client",
+                "login"
+              ]
+            },
+            "description": "La connexion est refusée pour tout compte DESACTIVE, même avec des identifiants valides."
+          },
+          "response": []
+        },
+        {
+          "name": "7. Admin: Réactiver un utilisateur (PUT .../activer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Compte réactivé\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Le statut retourné est ACTIF\", function () {",
+                  "    pm.expect(jsonData.statut).to.eql(\"ACTIF\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/utilisateurs/{{admin_supervision_client_id}}/activer",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "utilisateurs",
+                "{{admin_supervision_client_id}}",
+                "activer"
+              ]
+            },
+            "description": "Réactive le compte et retourne l'utilisateur mis à jour. 404 si l'utilisateur est introuvable."
+          },
+          "response": []
+        },
+        {
+          "name": "8. Admin: Désactivation de son propre compte refusée (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 403 - Auto-désactivation interdite\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test(\"Message explicite\", function () {",
+                  "    pm.expect(pm.response.json().erreur).to.include(\"propre compte\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/utilisateurs/{{admin_id}}/desactiver",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "utilisateurs",
+                "{{admin_id}}",
+                "desactiver"
+              ]
+            },
+            "description": "Règle de sécurité : un administrateur ne peut pas désactiver son propre compte. La réponse est 403 avec un message explicite."
+          },
+          "response": []
+        },
+        {
+          "name": "9. Admin: Lister toutes les réservations (GET /admin/reservations)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Liste des réservations\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Retourne un tableau avec les jointures produit/client/commerçant\", function () {",
+                  "    pm.expect(jsonData).to.be.an(\"array\");",
+                  "    if (jsonData.length > 0) {",
+                  "        pm.expect(jsonData[0]).to.have.property(\"produitNom\");",
+                  "        pm.expect(jsonData[0]).to.have.property(\"commercantNom\");",
+                  "        pm.expect(jsonData[0]).to.have.property(\"statut\");",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/reservations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "reservations"
+              ]
+            },
+            "description": "Supervision ADMIN de toutes les réservations. Filtres optionnels ?statut=...&clientId=...&commercantId=..."
+          },
+          "response": []
+        },
+        {
+          "name": "10. Admin: Filtrer réservations ?statut=EN_ATTENTE",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Filtre statut appliqué\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Toutes les réservations retournées sont EN_ATTENTE\", function () {",
+                  "    pm.expect(jsonData).to.be.an(\"array\");",
+                  "    jsonData.forEach(function (r) {",
+                  "        pm.expect(r.statut).to.eql(\"EN_ATTENTE\");",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/reservations?statut=EN_ATTENTE",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "reservations"
+              ],
+              "query": [
+                {
+                  "key": "statut",
+                  "value": "EN_ATTENTE"
+                }
+              ]
+            },
+            "description": "Filtre optionnel par statut de réservation : EN_ATTENTE, CONFIRMEE, REFUSEE ou ANNULEE."
+          },
+          "response": []
+        },
+        {
+          "name": "11. Admin: Détail d'une réservation (GET /admin/reservations/{id})",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Détail récupéré\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"La réservation contient son identifiant et son statut\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"id\");",
+                  "    pm.expect(jsonData).to.have.property(\"statut\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/reservations/{{reservation_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "reservations",
+                "{{reservation_id}}"
+              ]
+            },
+            "description": "Retourne le détail complet d'une réservation. Utilise {{reservation_id}} alimenté par les scénarios précédents."
+          },
+          "response": []
+        },
+        {
+          "name": "12. Admin: Réservation inexistante (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 404 - Réservation introuvable\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test(\"Format d'erreur standard\", function () {",
+                  "    pm.expect(pm.response.json()).to.have.property(\"erreur\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/reservations/999999",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "reservations",
+                "999999"
+              ]
+            },
+            "description": "Vérifie le code 404 et le format {\"erreur\": \"...\"} pour une réservation inexistante."
+          },
+          "response": []
+        },
+        {
+          "name": "13. Public: Liste des commerçants actifs (GET /commercants)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Liste publique accessible sans token\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Données publiques uniquement (id, nom, localisation, telephone)\", function () {",
+                  "    pm.expect(jsonData).to.be.an(\"array\");",
+                  "    jsonData.forEach(function (c) {",
+                  "        pm.expect(c).to.have.property(\"id\");",
+                  "        pm.expect(c).to.have.property(\"nom\");",
+                  "        pm.expect(c).to.have.property(\"localisation\");",
+                  "        pm.expect(c).to.have.property(\"telephone\");",
+                  "        pm.expect(c).to.not.have.property(\"motDePasse\");",
+                  "        pm.expect(c).to.not.have.property(\"email\");",
+                  "        pm.expect(c).to.not.have.property(\"statut\");",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/commercants",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "commercants"
+              ]
+            },
+            "description": "Endpoint public pour le frontend React : uniquement les commerçants ACTIF, avec les données publiques."
+          },
+          "response": []
+        },
+        {
+          "name": "14. Public: Rechercher un commerçant (?recherche=Tunis)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Recherche effectuée\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Retourne un tableau filtré sur le nom ou la localisation\", function () {",
+                  "    pm.expect(pm.response.json()).to.be.an(\"array\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/commercants?recherche=Tunis",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "commercants"
+              ],
+              "query": [
+                {
+                  "key": "recherche",
+                  "value": "Tunis"
+                }
+              ]
+            },
+            "description": "Filtre optionnel ?recherche=... appliqué sur le nom du commerçant ou sa localisation."
+          },
+          "response": []
+        },
+        {
+          "name": "15. Preflight CORS (OPTIONS /commercants -> 204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 204 - Preflight sans authentification\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});",
+                  "",
+                  "pm.test(\"En-têtes CORS présents\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Access-Control-Allow-Origin\")).to.not.eql(null);",
+                  "    pm.expect(pm.response.headers.get(\"Access-Control-Allow-Methods\")).to.include(\"GET\");",
+                  "    pm.expect(pm.response.headers.get(\"Access-Control-Allow-Methods\")).to.include(\"OPTIONS\");",
+                  "    pm.expect(pm.response.headers.get(\"Access-Control-Allow-Headers\")).to.include(\"Authorization\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "GET"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/commercants",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "commercants"
+              ]
+            },
+            "description": "Le Router intercepte OPTIONS avant toute vérification JWT et répond 204 No Content avec les en-têtes CORS."
+          },
+          "response": []
+        },
+        {
+          "name": "16. CORS présent sur une réponse d'erreur (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 401 - Accès admin sans token\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test(\"En-têtes CORS présents malgré l'erreur\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Access-Control-Allow-Origin\")).to.not.eql(null);",
+                  "    pm.expect(pm.response.json()).to.have.property(\"erreur\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/utilisateurs",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "utilisateurs"
+              ]
+            },
+            "description": "Contrôle que les en-têtes CORS sont ajoutés à toutes les réponses, y compris les erreurs 401."
+          },
+          "response": []
+        }
+      ]
     }
-
   ]
 }
