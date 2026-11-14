@@ -43,6 +43,11 @@ public class Main {
             System.out.println("  PUT  http://localhost:" + PORT + "/reservations/:id/annuler  (Client: annuler une réservation EN_ATTENTE)");
             System.out.println("  PUT  http://localhost:" + PORT + "/reservations/:id/confirmer (Commerçant: confirmer une réservation EN_ATTENTE)");
             System.out.println("  PUT  http://localhost:" + PORT + "/reservations/:id/refuser  (Commerçant: refuser une réservation EN_ATTENTE)");
+            System.out.println("  GET  http://localhost:" + PORT + "/avis                      (Public: liste des avis ?commercantId=2)");
+            System.out.println("  GET  http://localhost:" + PORT + "/commercants/:id/avis      (Public: avis d'un commerçant + note moyenne)");
+            System.out.println("  POST http://localhost:" + PORT + "/avis                      (Client: créer un avis)");
+            System.out.println("  PUT  http://localhost:" + PORT + "/avis/:id                  (Client propriétaire: modifier son avis)");
+            System.out.println("  DELETE http://localhost:" + PORT + "/avis/:id                (Client propriétaire / Admin: supprimer un avis)");
             System.out.println("  GET  http://localhost:" + PORT + "/admin/commercants         (Admin: Liste des commerçants ?statut=EN_ATTENTE)");
             System.out.println("  PUT  http://localhost:" + PORT + "/admin/commercants/:id/accepter (Admin: Valider compte -> ACTIF)");
             System.out.println("  PUT  http://localhost:" + PORT + "/admin/commercants/:id/rejeter  (Admin: Rejeter compte -> REJETE)");

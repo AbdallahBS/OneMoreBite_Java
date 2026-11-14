@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "9b12a84d-28e6-42d4-a1e9-9a28e3b1f5d2",
     "name": "OneMoreBite API",
-    "description": "Collection complète des routes OneMoreBite :\n1. Authentification Admin & Commerçant avec JWT et BCrypt\n2. Cycle de vie Commerçant (Inscription EN_ATTENTE -> Validation Admin ACTIF / REJETE)\n3. Consultation publique des Produits\n4. Gestion des Produits par le Commerçant (CRUD, stock, disponibilité, images Cloudinary)\n5. Gestion et modération des Produits par l'Admin (CRUD, statistiques, images Cloudinary)\n6. Authentification Client (inscription, connexion, session, déconnexion et contrôles de rôle)\n7. Réservations Client (création, liste, détail, modification, annulation)\n8. Réservations Commerçant (liste, détail, confirmation, refus)\n9. Réservations : sécurité, isolation client/commerçant et transitions de statut",
+    "description": "Collection complète des routes OneMoreBite :\n1. Authentification Admin & Commerçant avec JWT et BCrypt\n2. Cycle de vie Commerçant (Inscription EN_ATTENTE -> Validation Admin ACTIF / REJETE)\n3. Consultation publique des Produits\n4. Gestion des Produits par le Commerçant (CRUD, stock, disponibilité, images Cloudinary)\n5. Gestion et modération des Produits par l'Admin (CRUD, statistiques, images Cloudinary)\n6. Authentification Client (inscription, connexion, session, déconnexion et contrôles de rôle)\n7. Réservations Client (création, liste, détail, modification, annulation)\n8. Réservations Commerçant (liste, détail, confirmation, refus)\n9. Réservations : sécurité, isolation client/commerçant et transitions de statut\n10. Gestion des Avis (création, liste, filtre par commerçant, note moyenne, modification, suppression, sécurité)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -128,6 +128,21 @@
     },
     {
       "key": "produit_indisponible_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "commercant_id",
+      "value": "2",
+      "type": "string"
+    },
+    {
+      "key": "avis_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "avis_id_admin",
       "value": "",
       "type": "string"
     }
@@ -5163,6 +5178,1153 @@
           ]
         }
       ]
+    },
+    {
+      "name": "9. Gestion des Avis",
+      "item": [
+        {
+          "name": "1. Login Client (prérequis)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/client/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "client",
+                "login"
+              ]
+            },
+            "description": "Connexion du client de démonstration (sami@gmail.com / client123). Le token est enregistré dans {{client_token}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{client_email}}\",\n  \"motDePasse\": \"{{client_password}}\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Client connecté\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Rôle CLIENT présent\", function () {",
+                  "    pm.expect(jsonData.token).to.be.a(\"string\").and.not.empty;",
+                  "    pm.expect(jsonData.role).to.eql(\"CLIENT\");",
+                  "});",
+                  "pm.collectionVariables.set(\"client_token\", jsonData.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Login Admin (prérequis)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Connexion de l'administrateur (admin@enicar.com / admin). Le token est enregistré dans {{admin_token}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@enicar.com\",\n  \"motDePasse\": \"admin\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Admin connecté\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.collectionVariables.set(\"admin_token\", pm.response.json().token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Login Commerçant (prérequis)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/commercant/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "commercant",
+                "login"
+              ]
+            },
+            "description": "Connexion du commerçant de démonstration (contact@benali.tn / pass123). Le token est enregistré dans {{commercant_token}} et sert aux tests de rôle.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"contact@benali.tn\",\n  \"motDePasse\": \"pass123\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Commerçant connecté\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.collectionVariables.set(\"commercant_token\", pm.response.json().token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Créer un avis (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/avis",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "avis"
+              ]
+            },
+            "description": "Crée un avis pour le commerçant {{commercant_id}}. Le client est déduit du token ; aucun clientId n'est accepté dans le corps. Réponse attendue : 201.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"commercantId\": {{commercant_id}},\n  \"note\": 4,\n  \"commentaire\": \"Bon accueil et produits de qualité.\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 201 - Avis créé\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Avis complet retourné\", function () {",
+                  "    pm.expect(jsonData.id).to.be.a(\"number\");",
+                  "    pm.expect(jsonData.note).to.eql(4);",
+                  "    pm.expect(jsonData.commentaire).to.eql(\"Bon accueil et produits de qualité.\");",
+                  "    pm.expect(jsonData.clientNom).to.be.a(\"string\").and.not.empty;",
+                  "    pm.expect(jsonData.commercantNom).to.be.a(\"string\").and.not.empty;",
+                  "    pm.expect(jsonData.dateAvis).to.be.a(\"string\").and.not.empty;",
+                  "});",
+                  "pm.collectionVariables.set(\"avis_id\", jsonData.id.toString());"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Lister tous les avis (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/avis",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "avis"
+              ]
+            },
+            "description": "Liste publique de tous les avis, triés du plus récent au plus ancien. Réponse attendue : 200 avec la liste des AvisResponse."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Liste des avis\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"L'avis créé est présent\", function () {",
+                  "    pm.expect(jsonData).to.be.an(\"array\");",
+                  "    pm.expect(jsonData.some(function (a) { return a.id.toString() === pm.collectionVariables.get(\"avis_id\"); })).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Filtrer par commerçant (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/avis?commercantId={{commercant_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "avis"
+              ],
+              "query": [
+                {
+                  "key": "commercantId",
+                  "value": "{{commercant_id}}"
+                }
+              ]
+            },
+            "description": "Filtre public des avis par commerçant. Réponse attendue : 200 avec uniquement les avis du commerçant demandé."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Avis filtrés\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "var commercantId = parseInt(pm.collectionVariables.get(\"commercant_id\"), 10);",
+                  "pm.test(\"Tous les avis concernent le commerçant filtré\", function () {",
+                  "    pm.expect(jsonData).to.be.an(\"array\");",
+                  "    pm.expect(jsonData.every(function (a) { return a.commercantId === commercantId; })).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. Avis d'un commerçant + moyenne (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/commercants/{{commercant_id}}/avis",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "commercants",
+                "{{commercant_id}}",
+                "avis"
+              ]
+            },
+            "description": "Endpoint public pratique retournant les avis du commerçant, sa note moyenne et le nombre total d'avis. Réponse attendue : 200."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Synthèse des avis\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Note moyenne et nombre d'avis cohérents\", function () {",
+                  "    pm.expect(jsonData.avis).to.be.an(\"array\");",
+                  "    pm.expect(jsonData.nombreAvis).to.be.a(\"number\").and.at.least(1);",
+                  "    pm.expect(jsonData.noteMoyenne).to.be.a(\"number\");",
+                  "    pm.expect(jsonData.noteMoyenne).to.be.within(1, 5);",
+                  "    pm.expect(jsonData.nombreAvis).to.eql(jsonData.avis.length);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "8. Avis d'un commerçant inexistant (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/commercants/999999/avis",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "commercants",
+                "999999",
+                "avis"
+              ]
+            },
+            "description": "Vérifie qu'un commerçant inexistant renvoie 404 avec le format d'erreur {\"erreur\": \"...\"}."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 404 - Commerçant inconnu\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test(\"Message d'erreur présent\", function () {",
+                  "    pm.expect(pm.response.json()).to.have.property(\"erreur\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "9. Modifier son avis (200)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/avis/{{avis_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "avis",
+                "{{avis_id}}"
+              ]
+            },
+            "description": "Modifie la note et le commentaire de l'avis appartenant au client connecté. Réponse attendue : 200.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": 5,\n  \"commentaire\": \"Toujours excellent, je recommande.\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Avis modifié\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Les modifications sont appliquées\", function () {",
+                  "    pm.expect(jsonData.note).to.eql(5);",
+                  "    pm.expect(jsonData.commentaire).to.eql(\"Toujours excellent, je recommande.\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "10. Modifier avec une note invalide (400)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/avis/{{avis_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "avis",
+                "{{avis_id}}"
+              ]
+            },
+            "description": "Tente de modifier un avis avec une note hors de l'intervalle 1-5. Réponse attendue : 400.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": 6,\n  \"commentaire\": \"Note invalide.\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 400 - Note invalide\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Message d'erreur présent\", function () {",
+                  "    pm.expect(pm.response.json()).to.have.property(\"erreur\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "11. Modifier un avis inexistant (404)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/avis/999999",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "avis",
+                "999999"
+              ]
+            },
+            "description": "Tente de modifier un avis qui n'existe pas. Réponse attendue : 404.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": 5,\n  \"commentaire\": \"Avis inexistant.\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 404 - Avis inconnu\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test(\"Message d'erreur présent\", function () {",
+                  "    pm.expect(pm.response.json()).to.have.property(\"erreur\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "12. Créer un avis sans authentification (401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/avis",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "avis"
+              ]
+            },
+            "description": "Tente de créer un avis sans en-tête Authorization. Réponse attendue : 401.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"commercantId\": {{commercant_id}},\n  \"note\": 4,\n  \"commentaire\": \"Sans token.\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 401 - Authentification requise\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test(\"Message d'erreur présent\", function () {",
+                  "    pm.expect(pm.response.json()).to.have.property(\"erreur\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "13. Créer un avis avec un token commerçant (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/avis",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "avis"
+              ]
+            },
+            "description": "Vérifie que la création d'avis est réservée au rôle CLIENT. Réponse attendue : 403.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"commercantId\": {{commercant_id}},\n  \"note\": 4,\n  \"commentaire\": \"Un commerçant ne peut pas noter un commerçant.\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 403 - Rôle CLIENT requis\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "pm.test(\"Message d'erreur présent\", function () {",
+                  "    pm.expect(pm.response.json()).to.have.property(\"erreur\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "14. Créer un avis sans note (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/avis",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "avis"
+              ]
+            },
+            "description": "Tente de créer un avis sans le champ note. Réponse attendue : 400.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"commercantId\": {{commercant_id}},\n  \"commentaire\": \"Note manquante.\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 400 - Note obligatoire\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Message d'erreur présent\", function () {",
+                  "    pm.expect(pm.response.json()).to.have.property(\"erreur\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "15. Créer un avis pour un commerçant inexistant (404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/avis",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "avis"
+              ]
+            },
+            "description": "Tente de créer un avis pour un commerçant qui n'existe pas. Réponse attendue : 404.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"commercantId\": 999999,\n  \"note\": 5,\n  \"commentaire\": \"Commerçant inexistant.\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 404 - Commerçant inconnu\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test(\"Message d'erreur présent\", function () {",
+                  "    pm.expect(pm.response.json()).to.have.property(\"erreur\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "16. Créer un avis avec un commentaire vide (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/avis",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "avis"
+              ]
+            },
+            "description": "Tente de créer un avis avec un commentaire vide. Réponse attendue : 400.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"commercantId\": {{commercant_id}},\n  \"note\": 4,\n  \"commentaire\": \"   \"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 400 - Commentaire obligatoire\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Message d'erreur présent\", function () {",
+                  "    pm.expect(pm.response.json()).to.have.property(\"erreur\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "17. Inscription d'un second client",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/client/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "client",
+                "register"
+              ]
+            },
+            "description": "Crée un second client pour vérifier qu'il ne peut ni modifier ni supprimer l'avis du premier. Un email unique est généré avant la requête. Réponse attendue : 201.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nom\": \"Client Sécurité Avis\",\n  \"email\": \"{{client2_email}}\",\n  \"motDePasse\": \"{{client2_password}}\",\n  \"telephone\": \"20333444\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set(\"client2_email\", \"avis.client2.\" + Date.now() + \"@example.com\");"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 201 - Second client créé\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "18. Connexion du second client",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/client/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "client",
+                "login"
+              ]
+            },
+            "description": "Connecte le second client. Le token est enregistré dans {{client2_token}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{client2_email}}\",\n  \"motDePasse\": \"{{client2_password}}\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Second client connecté\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.collectionVariables.set(\"client2_token\", pm.response.json().token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "19. Modifier l'avis d'un autre client (403)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/avis/{{avis_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "avis",
+                "{{avis_id}}"
+              ]
+            },
+            "description": "Tente de modifier l'avis du premier client avec le token du second. Réponse attendue : 403.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client2_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": 1,\n  \"commentaire\": \"Tentative de modification non autorisée.\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 403 - Avis d'un autre client\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "pm.test(\"Message d'erreur présent\", function () {",
+                  "    pm.expect(pm.response.json()).to.have.property(\"erreur\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "20. Supprimer l'avis d'un autre client (403)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/avis/{{avis_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "avis",
+                "{{avis_id}}"
+              ]
+            },
+            "description": "Tente de supprimer l'avis du premier client avec le token du second. Réponse attendue : 403.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client2_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 403 - Suppression non autorisée\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "pm.test(\"Message d'erreur présent\", function () {",
+                  "    pm.expect(pm.response.json()).to.have.property(\"erreur\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "21. Supprimer un avis inexistant (404)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/avis/999999",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "avis",
+                "999999"
+              ]
+            },
+            "description": "Tente de supprimer un avis qui n'existe pas. Réponse attendue : 404.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 404 - Avis inconnu\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test(\"Message d'erreur présent\", function () {",
+                  "    pm.expect(pm.response.json()).to.have.property(\"erreur\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "22. Supprimer son avis (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/avis/{{avis_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "avis",
+                "{{avis_id}}"
+              ]
+            },
+            "description": "Le client propriétaire supprime son avis. Réponse attendue : 204 No Content.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 204 - Avis supprimé\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "23. Créer un avis pour la modération admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/avis",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "avis"
+              ]
+            },
+            "description": "Crée un nouvel avis destiné au test de suppression par un administrateur. Réponse attendue : 201.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"commercantId\": {{commercant_id}},\n  \"note\": 3,\n  \"commentaire\": \"Avis destiné à la modération administrateur.\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 201 - Avis de modération créé\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set(\"avis_id_admin\", pm.response.json().id.toString());"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "24. Admin supprime un avis (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/avis/{{avis_id_admin}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "avis",
+                "{{avis_id_admin}}"
+              ]
+            },
+            "description": "Un administrateur supprime un avis dans le cadre de la modération. Réponse attendue : 204 No Content.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 204 - Modération admin\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
     }
+
   ]
 }

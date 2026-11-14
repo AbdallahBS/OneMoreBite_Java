@@ -12,6 +12,7 @@ API Java 17 (HTTP server natif) pour la gestion d'une plateforme anti-gaspillage
 - Upload / suppression d'images via l'API Cloudinary
 - Réservations clients : création, consultation, modification et annulation (`EN_ATTENTE` uniquement)
 - Réservations commerçants : consultation des réservations reçues, confirmation et refus (`EN_ATTENTE` uniquement)
+- Gestion des avis clients sur les commerçants : création, liste publique, filtre, note moyenne, modification et suppression modérée
 
 ## Prérequis
 
@@ -76,6 +77,23 @@ Sans configuration, l'upload renvoie une erreur `503` avec un message explicite.
 | GET | `/produits` | Liste des produits (`?commercantId=2&disponible=true&recherche=panier`) |
 | GET | `/produits/{id}` | Détail d'un produit |
 | GET | `/commercants` | Liste des commerçants actifs |
+| GET | `/avis` | Liste publique des avis (`?commercantId=2`) |
+| GET | `/commercants/{id}/avis` | Avis d'un commerçant, note moyenne et nombre total |
+
+### Avis (Client, Bearer Token `CLIENT`)
+
+Le client auteur d'un avis est toujours déduit du token JWT ; aucun `clientId`
+n'est accepté dans le corps de la requête. Les avis sont rattachés à un
+commerçant (`commercant_id`) et non à un produit.
+
+| Méthode | Route | Description |
+| --- | --- | --- |
+| POST | `/avis` | Créer un avis (`commercantId`, `note` 1-5, `commentaire`) |
+| PUT | `/avis/{id}` | Modifier son avis (`note`, `commentaire`) |
+| DELETE | `/avis/{id}` | Supprimer son avis (le propriétaire ou un `ADMIN`) |
+
+`GET /commercants/{id}/avis` retourne un objet
+`{ commercantId, commercantNom, noteMoyenne, nombreAvis, avis: [...] }`.
 
 ### Commerçant (Bearer Token `COMMERCANT`)
 
@@ -159,8 +177,9 @@ Importer `OneMoreBite.postman_collection.json`. La collection contient :
 6. Réservations (Client)
 7. Réservations (Commerçant)
 8. Réservations — Sécurité & transitions
+9. Gestion des Avis
 
-Les scripts de test enregistrent automatiquement les tokens et les identifiants de produits dans les variables de collection (`admin_token`, `commercant_token`, `client_token`, `produit_id`, `admin_produit_id`, `image_url`, `image_public_id`, `reservation_id`, etc.).
+Les scripts de test enregistrent automatiquement les tokens et les identifiants de produits dans les variables de collection (`admin_token`, `commercant_token`, `client_token`, `produit_id`, `admin_produit_id`, `image_url`, `image_public_id`, `reservation_id`, `avis_id`, etc.).
 
 ## Migration base de données
 
@@ -169,3 +188,8 @@ Pour une base existante créée avant l'ajout des réservations commerçant, ex�
 ajoute uniquement la valeur `REFUSEE` à l'enum `commande.statut`, nécessaire pour
 distinguer un refus commerçant d'une annulation client. Le script complet
 `src/main/resources/database/database.sql` contient déjà ce statut.
+
+Pour une base existante créée avant le module de gestion des avis, exécuter
+`src/main/resources/database/migration_avis_commercant.sql`. Cette migration
+rattache les avis existants au commerçant (via `produit.commercant_id`) et
+remplace `avis.produit_id` par `avis.commercant_id`.

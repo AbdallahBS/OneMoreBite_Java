@@ -3,10 +3,13 @@ package tn.enicarthage.onemorebite.router;
 import com.google.gson.*;
 import com.sun.net.httpserver.HttpExchange;
 import tn.enicarthage.onemorebite.controller.AuthController;
+import tn.enicarthage.onemorebite.controller.AvisController;
 import tn.enicarthage.onemorebite.controller.ClientController;
 import tn.enicarthage.onemorebite.controller.CommercantController;
 import tn.enicarthage.onemorebite.controller.ProduitController;
 import tn.enicarthage.onemorebite.controller.ReservationController;
+import tn.enicarthage.onemorebite.dto.AvisRequest;
+import tn.enicarthage.onemorebite.dto.AvisUpdateRequest;
 import tn.enicarthage.onemorebite.dto.ClientRegisterRequest;
 import tn.enicarthage.onemorebite.dto.CommercantRegisterRequest;
 import tn.enicarthage.onemorebite.dto.ImageUploadRequest;
@@ -51,6 +54,7 @@ public class Router {
     private final ClientController clientController = new ClientController();
     private final CommercantController commercantController = new CommercantController();
     private final ReservationController reservationController = new ReservationController();
+    private final AvisController avisController = new AvisController();
     private final AuthService authService = new AuthService();
     private final JwtUtil jwtUtil = new JwtUtil();
 
@@ -100,6 +104,7 @@ public class Router {
             case "admin" -> routesAdmin(methode, segments, exchange);
             case "commercants" -> routesCommercantPublic(methode, segments, exchange);
             case "reservations" -> routesReservation(methode, segments, exchange);
+            case "avis" -> routesAvis(methode, segments, exchange);
             default -> throw new ResourceNotFoundException("Route inconnue /" + segments[1]);
         };
     }
@@ -327,6 +332,13 @@ public class Router {
                 }
                 return new Reponse(200, gson.toJson(commercantController.obtenir(id)));
             }
+        } else if (segments.length == 4 && "avis".equalsIgnoreCase(segments[3])) {
+            // GET /commercants/{id}/avis : avis publics d'un commerçant + note moyenne
+            int id = parseId(segments[2]);
+            if (!"GET".equalsIgnoreCase(methode)) {
+                throw new IllegalArgumentException("Méthode non supportée: " + methode);
+            }
+            return new Reponse(200, gson.toJson(avisController.listerParCommercant(id)));
         }
         throw new ResourceNotFoundException("Route inconnue.");
     }
@@ -407,6 +419,46 @@ public class Router {
         }
 
         throw new ResourceNotFoundException("Route réservation inconnue.");
+    }
+
+    private Reponse routesAvis(String methode, String[] segments, HttpExchange exchange) throws IOException {
+        // GET /avis?commercantId={id} : liste publique, éventuellement filtrée
+        // POST /avis : création par un client authentifié (client déduit du token)
+        if (segments.length == 2) {
+            return switch (methode.toUpperCase()) {
+                case "GET" -> {
+                    Integer commercantId = parseEntierOptionnel(
+                            extraireParametre(exchange.getRequestURI().getQuery(), "commercantId"));
+                    yield new Reponse(200, gson.toJson(avisController.lister(commercantId)));
+                }
+                case "POST" -> {
+                    JwtUtil.JwtClaims claims = exigerTokenClient(exchange);
+                    AvisRequest request = lireCorps(exchange, AvisRequest.class);
+                    yield new Reponse(201, gson.toJson(avisController.creer(request, claims)));
+                }
+                default -> throw new IllegalArgumentException("Méthode non supportée: " + methode);
+            };
+        }
+
+        // PUT /avis/{id} : client propriétaire ; DELETE /avis/{id} : client propriétaire ou admin
+        if (segments.length == 3) {
+            int id = parseId(segments[2]);
+            return switch (methode.toUpperCase()) {
+                case "PUT" -> {
+                    JwtUtil.JwtClaims claims = exigerTokenClient(exchange);
+                    AvisUpdateRequest request = lireCorps(exchange, AvisUpdateRequest.class);
+                    yield new Reponse(200, gson.toJson(avisController.modifier(id, request, claims)));
+                }
+                case "DELETE" -> {
+                    JwtUtil.JwtClaims claims = exigerTokenUtilisateur(exchange);
+                    avisController.supprimer(id, claims);
+                    yield new Reponse(204, "");
+                }
+                default -> throw new IllegalArgumentException("Méthode non supportée: " + methode);
+            };
+        }
+
+        throw new ResourceNotFoundException("Route avis inconnue.");
     }
 
     private Reponse routesProduit(String methode, String[] segments, HttpExchange exchange) throws IOException {

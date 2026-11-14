@@ -71,14 +71,14 @@ CREATE TABLE commande (
 CREATE TABLE avis (
                       id INT AUTO_INCREMENT PRIMARY KEY,
                       note INT NOT NULL CHECK (note BETWEEN 1 AND 5),
-                      commentaire TEXT,
+                      commentaire TEXT NOT NULL,
                       date_avis DATETIME DEFAULT CURRENT_TIMESTAMP,
                       client_id INT NOT NULL,
-                      produit_id INT NOT NULL,
+                      commercant_id INT NOT NULL,
                       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                       CONSTRAINT fk_avis_client FOREIGN KEY (client_id) REFERENCES client(id) ON DELETE CASCADE,
-                      CONSTRAINT fk_avis_produit FOREIGN KEY (produit_id) REFERENCES produit(id) ON DELETE CASCADE
+                      CONSTRAINT fk_avis_commercant FOREIGN KEY (commercant_id) REFERENCES commercant(id) ON DELETE CASCADE
 );
 
 -- 2. Insertions ordonnées
@@ -102,5 +102,5 @@ INSERT INTO commande (id, quantite, statut, produit_id, client_id) VALUES
 INSERT INTO commande (id, quantite, statut, produit_id, client_id, nom_invite, email_invite, telephone_invite) VALUES
     (2, 2, 'EN_ATTENTE', 2, NULL, 'Mohamed Invité', 'mohamed@gmail.com', '98888888');
 
-INSERT INTO avis (note, commentaire, client_id, produit_id) VALUES
-    (5, 'Excellent panier, viennoiseries encore très fraîches !', 3, 1);
+INSERT INTO avis (note, commentaire, client_id, commercant_id) VALUES
+    (5, 'Excellent panier, viennoiseries encore très fraîches !', 3, 2);
