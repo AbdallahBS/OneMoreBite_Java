@@ -183,6 +183,83 @@ public class CommercantDAO {
         }
     }
 
+    /**
+     * Met à jour le profil du commerçant dans une transaction : champs communs
+     * (table utilisateur) et localisation (table commercant).
+     */
+    public boolean mettreAJourProfil(int id, String nom, String email, String telephone,
+                                     String motDePasseHache, String localisation) {
+        String sqlUser = "UPDATE utilisateur SET nom = ?, email = ?, telephone = ?, mot_de_passe = ? WHERE id = ?";
+        String sqlCommercant = "UPDATE commercant SET localisation = ? WHERE id = ?";
+
+        Connection conn = null;
+        try {
+            conn = DatabaseConnection.getConnection();
+            conn.setAutoCommit(false);
+
+            int updated;
+            try (PreparedStatement stmtUser = conn.prepareStatement(sqlUser)) {
+                stmtUser.setString(1, nom);
+                stmtUser.setString(2, email);
+                stmtUser.setString(3, telephone);
+                stmtUser.setString(4, motDePasseHache);
+                stmtUser.setInt(5, id);
+                updated = stmtUser.executeUpdate();
+            }
+
+            if (updated == 0) {
+                conn.rollback();
+                return false;
+            }
+
+            try (PreparedStatement stmtCommercant = conn.prepareStatement(sqlCommercant)) {
+                stmtCommercant.setString(1, localisation);
+                stmtCommercant.setInt(2, id);
+                stmtCommercant.executeUpdate();
+            }
+
+            conn.commit();
+            return true;
+        } catch (SQLException e) {
+            if (conn != null) {
+                try {
+                    conn.rollback();
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+            }
+            if (e.getSQLState() != null && e.getSQLState().startsWith("23")) {
+                throw new IllegalArgumentException("Un compte avec cet email existe déjà.");
+            }
+            throw new RuntimeException("Erreur lors de la mise à jour du profil commerçant.", e);
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.setAutoCommit(true);
+                    conn.close();
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    /**
+     * Supprime le compte. Les produits, réservations et avis liés sont supprimés
+     * par les contraintes ON DELETE CASCADE du schéma.
+     */
+    public boolean supprimer(int id) {
+        String sql = "DELETE FROM utilisateur WHERE id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, id);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException("Erreur lors de la suppression du compte commerçant.", e);
+        }
+    }
+
     private Commercant mapResultSet(ResultSet rs) throws SQLException {
         return new Commercant(
                 rs.getInt("id"),

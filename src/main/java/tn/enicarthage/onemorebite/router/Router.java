@@ -19,6 +19,7 @@ import tn.enicarthage.onemorebite.dto.ProduitRequest;
 import tn.enicarthage.onemorebite.dto.ProduitStockRequest;
 import tn.enicarthage.onemorebite.dto.ReservationRequest;
 import tn.enicarthage.onemorebite.dto.ReservationUpdateRequest;
+import tn.enicarthage.onemorebite.dto.UpdateProfilRequest;
 import tn.enicarthage.onemorebite.exception.AuthenticationException;
 import tn.enicarthage.onemorebite.exception.ForbiddenException;
 import tn.enicarthage.onemorebite.exception.ResourceNotFoundException;
@@ -127,7 +128,8 @@ public class Router {
                     String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
                     yield new Reponse(200, gson.toJson(authController.logout(authHeader)));
                 }
-                case "me", "session", "verifier" -> {
+                case "me" -> routesProfil(methode, exchange);
+                case "session", "verifier" -> {
                     if (!"GET".equalsIgnoreCase(methode)) {
                         throw new IllegalArgumentException("Méthode non supportée: " + methode);
                     }
@@ -176,6 +178,32 @@ public class Router {
             };
         }
         throw new ResourceNotFoundException("Route auth inconnue.");
+    }
+
+    /**
+     * GET /auth/me : consultation du profil.
+     * PUT|PATCH /auth/me : mise à jour partielle du profil (tout rôle connecté).
+     * DELETE /auth/me : suppression du compte et révocation immédiate du token.
+     */
+    private Reponse routesProfil(String methode, HttpExchange exchange) throws IOException {
+        return switch (methode.toUpperCase()) {
+            case "GET" -> {
+                String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
+                yield new Reponse(200, gson.toJson(authController.me(authHeader)));
+            }
+            case "PUT", "PATCH" -> {
+                JwtUtil.JwtClaims claims = exigerTokenUtilisateur(exchange);
+                UpdateProfilRequest request = lireCorps(exchange, UpdateProfilRequest.class);
+                yield new Reponse(200, gson.toJson(authController.modifierProfil(request, claims)));
+            }
+            case "DELETE" -> {
+                JwtUtil.JwtClaims claims = exigerTokenUtilisateur(exchange);
+                String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
+                authController.supprimerCompte(claims, authHeader);
+                yield new Reponse(204, "");
+            }
+            default -> throw new IllegalArgumentException("Méthode non supportée: " + methode);
+        };
     }
 
     private Reponse routesAdmin(String methode, String[] segments, HttpExchange exchange) throws IOException {

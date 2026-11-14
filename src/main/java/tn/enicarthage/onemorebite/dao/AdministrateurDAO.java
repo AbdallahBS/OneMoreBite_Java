@@ -156,6 +156,60 @@ public class AdministrateurDAO {
         }
     }
 
+    /**
+     * Met à jour les champs communs du profil administrateur (table utilisateur).
+     */
+    public boolean mettreAJourProfil(int id, String nom, String email, String telephone, String motDePasseHache) {
+        String sql = "UPDATE utilisateur SET nom = ?, email = ?, telephone = ?, mot_de_passe = ? WHERE id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, nom);
+            stmt.setString(2, email);
+            stmt.setString(3, telephone);
+            stmt.setString(4, motDePasseHache);
+            stmt.setInt(5, id);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            if (e.getSQLState() != null && e.getSQLState().startsWith("23")) {
+                throw new IllegalArgumentException("Un compte avec cet email existe déjà.");
+            }
+            throw new RuntimeException("Erreur lors de la mise à jour du profil administrateur.", e);
+        }
+    }
+
+    /**
+     * Supprime le compte administrateur. La ligne administrateur associée est
+     * supprimée par la contrainte ON DELETE CASCADE.
+     */
+    public boolean supprimer(int id) {
+        String sql = "DELETE FROM utilisateur WHERE id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, id);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException("Erreur lors de la suppression du compte administrateur.", e);
+        }
+    }
+
+    /**
+     * Nombre d'administrateurs existants, utilisé pour garantir qu'il en reste
+     * toujours au moins un sur la plateforme.
+     */
+    public int compter() {
+        String sql = "SELECT COUNT(*) FROM administrateur";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+
+            return rs.next() ? rs.getInt(1) : 0;
+        } catch (SQLException e) {
+            throw new RuntimeException("Erreur lors du comptage des administrateurs.", e);
+        }
+    }
+
     private Administrateur mapResultSet(ResultSet rs) throws SQLException {
         return new Administrateur(
                 rs.getInt("id"),

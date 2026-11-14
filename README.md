@@ -6,6 +6,7 @@ API Java 17 (HTTP server natif) pour la gestion d'une plateforme anti-gaspillage
 
 - Authentification Admin, Commerçant & Client avec JWT et BCrypt
 - Inscription, connexion, session et déconnexion des clients
+- Gestion du profil de tout utilisateur connecté : modification partielle (`PUT /auth/me`) et suppression du compte (`DELETE /auth/me`) avec révocation immédiate du token
 - Cycle de vie des commerçants : inscription `EN_ATTENTE` → validation admin `ACTIF` / `REJETE`
 - Gestion des produits par les commerçants : CRUD, stock, disponibilité, images Cloudinary
 - Gestion et modération des produits par l'administrateur : filtres, CRUD, statistiques
@@ -68,7 +69,24 @@ Sans configuration, l'upload renvoie une erreur `503` avec un message explicite.
 | POST | `/auth/client/register` | Inscription d'un client (rôle `CLIENT` imposé) |
 | POST | `/auth/client/login` | Connexion d'un client |
 | GET | `/auth/me` | Profil de la session courante (Bearer Token) |
+| PUT / PATCH | `/auth/me` | Modifier partiellement son profil (`nom`, `email`, `telephone`, `motDePasse`, `ancienMotDePasse`, `localisation` commerçant) |
+| DELETE | `/auth/me` | Supprimer son compte et révoquer immédiatement le token |
 | POST | `/auth/logout` | Déconnexion et révocation du token JWT |
+
+`PUT /auth/me` est ouvert à tous les rôles (`CLIENT`, `COMMERCANT`, `ADMIN`).
+Seuls les champs présents (non-null) dans le JSON sont modifiés. Le nouveau mot
+de passe est haché avec BCrypt et `ancienMotDePasse` est vérifié lorsqu'il est
+fourni. `localisation` n'est appliquée que pour un `COMMERCANT`.
+
+`DELETE /auth/me` supprime la ligne `utilisateur` : la ligne `client`,
+`commercant` ou `administrateur` et les avis sont nettoyés par les contraintes
+`ON DELETE CASCADE` du schéma. Les réservations du client sont supprimées
+explicitement dans le DAO (la contrainte `commande.client_id` étant
+`ON DELETE SET NULL`), et la suppression d'un commerçant cascade sur ses
+produits puis sur les réservations associées. Le compte administrateur principal
+ne peut pas être supprimé (`403`) afin de toujours conserver un administrateur
+actif. Le token JWT utilisé est ajouté à la liste de révocation serveur, comme
+pour `POST /auth/logout`.
 
 ### Public
 

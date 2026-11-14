@@ -1421,6 +1421,493 @@
               "body": "{\n  \"erreur\": \"Session révoquée suite à une déconnexion. Veuillez vous reconnecter.\"\n}"
             }
           ]
+        },
+        {
+          "name": "Profil - Inscription client de test (prérequis)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Compte client dédié aux tests de profil et de suppression",
+                  "pm.collectionVariables.set(\"profil_client_email\", \"profil.\" + Date.now() + \"@example.com\");",
+                  "pm.collectionVariables.set(\"profil_client_password\", \"ProfilPass123\");",
+                  "pm.collectionVariables.set(\"profil_client_nom\", \"Client Profil Test\");"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 201 - Compte client de test créé\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Rôle CLIENT et aucun mot de passe renvoyé\", function () {",
+                  "    pm.expect(jsonData.role).to.eql(\"CLIENT\");",
+                  "    pm.expect(jsonData).to.not.have.property(\"motDePasse\");",
+                  "});",
+                  "",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set(\"profil_client_id\", jsonData.id.toString());",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nom\": \"{{profil_client_nom}}\",\n  \"email\": \"{{profil_client_email}}\",\n  \"motDePasse\": \"{{profil_client_password}}\",\n  \"telephone\": \"20999999\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/client/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "client",
+                "register"
+              ]
+            },
+            "description": "Crée un client isolé pour tester PUT /auth/me puis DELETE /auth/me sans impacter les autres scénarios de la collection."
+          },
+          "response": []
+        },
+        {
+          "name": "Profil - Connexion client de test (prérequis)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Connexion client de test réussie\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Token CLIENT retourné\", function () {",
+                  "    pm.expect(jsonData.role).to.eql(\"CLIENT\");",
+                  "    pm.expect(jsonData).to.have.property(\"token\");",
+                  "});",
+                  "",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set(\"profil_client_token\", jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{profil_client_email}}\",\n  \"motDePasse\": \"{{profil_client_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/client/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "client",
+                "login"
+              ]
+            },
+            "description": "Enregistre le token du client de test dans {{profil_client_token}}."
+          },
+          "response": []
+        },
+        {
+          "name": "Profil - Modifier profil client (PUT /auth/me -> 200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Profil client mis à jour\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Mise à jour partielle appliquée et mot de passe absent\", function () {",
+                  "    pm.expect(jsonData.nom).to.eql(\"Client Profil Modifié\");",
+                  "    pm.expect(jsonData.telephone).to.eql(\"20888888\");",
+                  "    pm.expect(jsonData.role).to.eql(\"CLIENT\");",
+                  "    pm.expect(jsonData).to.not.have.property(\"motDePasse\");",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set(\"profil_client_password\", \"NouveauProfilPass123\");"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{profil_client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nom\": \"Client Profil Modifié\",\n  \"telephone\": \"20888888\",\n  \"motDePasse\": \"NouveauProfilPass123\",\n  \"ancienMotDePasse\": \"{{profil_client_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Modifie partiellement le profil client : nom, téléphone et mot de passe (vérifié via ancienMotDePasse puis haché avec BCrypt). La réponse ne contient jamais le mot de passe."
+          },
+          "response": []
+        },
+        {
+          "name": "Profil - Connexion commerçant (prérequis)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Connexion commerçant réussie\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Token COMMERCANT retourné\", function () {",
+                  "    pm.expect(jsonData.role).to.eql(\"COMMERCANT\");",
+                  "    pm.expect(jsonData).to.have.property(\"token\");",
+                  "});",
+                  "",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set(\"profil_commercant_token\", jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"contact@benali.tn\",\n  \"motDePasse\": \"pass123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/commercant/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "commercant",
+                "login"
+              ]
+            },
+            "description": "Connexion du commerçant de démonstration pour tester la mise à jour de la localisation."
+          },
+          "response": []
+        },
+        {
+          "name": "Profil - Modifier profil commerçant avec localisation (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Profil commerçant mis à jour\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Localisation et téléphone mis à jour\", function () {",
+                  "    pm.expect(jsonData.localisation).to.eql(\"Tunis, La Marsa\");",
+                  "    pm.expect(jsonData.telephone).to.eql(\"71222333\");",
+                  "    pm.expect(jsonData).to.not.have.property(\"motDePasse\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{profil_commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telephone\": \"71222333\",\n  \"localisation\": \"Tunis, La Marsa\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "La localisation transmise par un COMMERCANT est appliquée à la table commercant ; les autres champs restent inchangés."
+          },
+          "response": []
+        },
+        {
+          "name": "Profil - Email déjà utilisé par un autre compte (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 400 - Email déjà utilisé\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test(\"Format d'erreur standard du projet\", function () {",
+                  "    pm.expect(pm.response.json()).to.have.property(\"erreur\");",
+                  "    pm.expect(pm.response.json().erreur).to.include(\"existe déjà\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{profil_client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"contact@benali.tn\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Tente de prendre l'email du commerçant de démonstration. La réponse attendue est 400."
+          },
+          "response": []
+        },
+        {
+          "name": "Profil - Email invalide (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 400 - Format d'email invalide\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test(\"Format d'erreur standard du projet\", function () {",
+                  "    pm.expect(pm.response.json()).to.have.property(\"erreur\");",
+                  "    pm.expect(pm.response.json().erreur).to.include(\"format de l'email\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{profil_client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"email-invalide\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Tente une mise à jour avec un email syntaxiquement invalide. La réponse attendue est 400."
+          },
+          "response": []
+        },
+        {
+          "name": "Profil - Supprimer son compte client de test (DELETE /auth/me -> 204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 204 - Compte supprimé\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{profil_client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Supprime le client de test. La suppression est propagée par les contraintes ON DELETE CASCADE / SET NULL du schéma et le token courant est révoqué."
+          },
+          "response": []
+        },
+        {
+          "name": "Profil - Token rejeté après suppression du compte (GET /auth/me -> 401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 401 - Token révoqué après suppression\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test(\"Message de session révoquée\", function () {",
+                  "    pm.expect(pm.response.json().erreur).to.include(\"révoquée\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{profil_client_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Réutilise le token du compte supprimé. Le serveur doit répondre 401 car DELETE /auth/me a immédiatement révoqué le token."
+          },
+          "response": []
         }
       ]
     },

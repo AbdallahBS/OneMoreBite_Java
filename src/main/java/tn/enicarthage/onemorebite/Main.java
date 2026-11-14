@@ -30,6 +30,8 @@ public class Main {
             System.out.println("Endpoints disponibles :");
             System.out.println("  POST http://localhost:" + PORT + "/auth/login                (Connexion Admin / Commerçant / Client)");
             System.out.println("  GET  http://localhost:" + PORT + "/auth/me                   (Session profil - Bearer Token)");
+            System.out.println("  PUT  http://localhost:" + PORT + "/auth/me                   (Modifier son profil - Bearer Token)");
+            System.out.println("  DELETE http://localhost:" + PORT + "/auth/me                 (Supprimer son compte - Bearer Token)");
             System.out.println("  POST http://localhost:" + PORT + "/auth/logout               (Déconnexion - Invalidation JWT)");
             System.out.println("  POST http://localhost:" + PORT + "/auth/client/register       (Inscription client)");
             System.out.println("  POST http://localhost:" + PORT + "/auth/client/login          (Connexion client)");

@@ -142,6 +142,78 @@ public class ClientDAO {
         }
     }
 
+    /**
+     * Met à jour les champs communs du profil (table utilisateur).
+     * Les valeurs transmises sont déjà validées et normalisées par le service.
+     */
+    public boolean mettreAJourProfil(int id, String nom, String email, String telephone, String motDePasseHache) {
+        String sql = "UPDATE utilisateur SET nom = ?, email = ?, telephone = ?, mot_de_passe = ? WHERE id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, nom);
+            stmt.setString(2, email);
+            stmt.setString(3, telephone);
+            stmt.setString(4, motDePasseHache);
+            stmt.setInt(5, id);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            if (e.getSQLState() != null && e.getSQLState().startsWith("23")) {
+                throw new IllegalArgumentException("Un compte avec cet email existe déjà.");
+            }
+            throw new RuntimeException("Erreur lors de la mise à jour du profil client.", e);
+        }
+    }
+
+    /**
+     * Supprime le compte et ses réservations. Le client, ses avis et ses
+     * commandes sont nettoyés dans une transaction : suppression explicite des
+     * réservations (la contrainte du schéma est ON DELETE SET NULL) puis de la
+     * ligne utilisateur (cascade sur client et avis).
+     */
+    public boolean supprimer(int id) {
+        String sqlReservations = "DELETE FROM commande WHERE client_id = ?";
+        String sqlUtilisateur = "DELETE FROM utilisateur WHERE id = ?";
+
+        Connection conn = null;
+        try {
+            conn = DatabaseConnection.getConnection();
+            conn.setAutoCommit(false);
+
+            try (PreparedStatement stmtReservations = conn.prepareStatement(sqlReservations)) {
+                stmtReservations.setInt(1, id);
+                stmtReservations.executeUpdate();
+            }
+
+            boolean supprime;
+            try (PreparedStatement stmtUtilisateur = conn.prepareStatement(sqlUtilisateur)) {
+                stmtUtilisateur.setInt(1, id);
+                supprime = stmtUtilisateur.executeUpdate() > 0;
+            }
+
+            conn.commit();
+            return supprime;
+        } catch (SQLException e) {
+            if (conn != null) {
+                try {
+                    conn.rollback();
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+            }
+            throw new RuntimeException("Erreur lors de la suppression du compte client.", e);
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.setAutoCommit(true);
+                    conn.close();
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
     private Client mapResultSet(ResultSet rs) throws SQLException {
         return new Client(
                 rs.getInt("id"),
