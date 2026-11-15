@@ -100,7 +100,8 @@ public class ClientService {
                 client.getNom(),
                 client.getEmail(),
                 client.getTelephone(),
-                "CLIENT"
+                "CLIENT",
+                client.getPhotoUrl()
         );
     }
 }

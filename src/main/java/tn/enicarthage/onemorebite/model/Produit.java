@@ -2,6 +2,9 @@ package tn.enicarthage.onemorebite.model;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public class Produit {
     private int id;
@@ -10,13 +13,16 @@ public class Produit {
     private double prix;
     private int quantite;
     private String imageUrl;
+    private List<String> images;
     private LocalDate dateExpiration;
     private boolean disponibilite;
     private int commercantId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public Produit() {}
+    public Produit() {
+        this.images = new ArrayList<>();
+    }
 
     public Produit(int id, String nom, String description, double prix, int quantite,
                    String imageUrl, LocalDate dateExpiration, boolean disponibilite,
@@ -26,12 +32,30 @@ public class Produit {
         this.description = description;
         this.prix = prix;
         this.quantite = quantite;
-        this.imageUrl = imageUrl;
+        initImages(imageUrl);
         this.dateExpiration = dateExpiration;
         this.disponibilite = disponibilite;
         this.commercantId = commercantId;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+    }
+
+    private void initImages(String raw) {
+        if (raw == null || raw.isBlank()) {
+            this.imageUrl = null;
+            this.images = new ArrayList<>();
+            return;
+        }
+        String[] parts = raw.split(",");
+        List<String> list = new ArrayList<>();
+        for (String p : parts) {
+            String trimmed = p.trim();
+            if (!trimmed.isEmpty()) {
+                list.add(trimmed);
+            }
+        }
+        this.images = list;
+        this.imageUrl = list.isEmpty() ? null : list.get(0);
     }
 
     public int getId() { return id; }
@@ -49,8 +73,49 @@ public class Produit {
     public int getQuantite() { return quantite; }
     public void setQuantite(int quantite) { this.quantite = quantite; }
 
-    public String getImageUrl() { return imageUrl; }
-    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    /**
+     * Retourne l'URL de l'image principale (la 1ère de la liste).
+     */
+    public String getImageUrl() {
+        if (imageUrl != null && imageUrl.contains(",")) {
+            return imageUrl.split(",")[0].trim();
+        }
+        return imageUrl;
+    }
+
+    /**
+     * Retourne la chaîne brute avec toutes les URLs concaténées par des virgules pour la persistance SQL.
+     */
+    public String getRawImageUrl() {
+        if (images != null && !images.isEmpty()) {
+            return String.join(",", images);
+        }
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        initImages(imageUrl);
+    }
+
+    public List<String> getImages() {
+        if (images != null && !images.isEmpty()) {
+            return images;
+        }
+        if (imageUrl != null && !imageUrl.isBlank()) {
+            return List.of(imageUrl);
+        }
+        return new ArrayList<>();
+    }
+
+    public void setImages(List<String> images) {
+        if (images == null || images.isEmpty()) {
+            this.images = new ArrayList<>();
+            this.imageUrl = null;
+        } else {
+            this.images = new ArrayList<>(images);
+            this.imageUrl = images.get(0);
+        }
+    }
 
     public LocalDate getDateExpiration() { return dateExpiration; }
     public void setDateExpiration(LocalDate dateExpiration) { this.dateExpiration = dateExpiration; }

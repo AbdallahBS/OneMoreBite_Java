@@ -96,9 +96,15 @@ public class Router {
             envoyer(exchange, 400, messageErreur(e.getMessage()));
         } catch (ServiceUnavailableException e) {
             envoyer(exchange, 503, messageErreur(e.getMessage()));
+        } catch (IOException e) {
+            // Connexion réseau interrompue par le client (socket abort / reset)
+            System.out.println("Avertissement réseau : connexion fermée par le client (" + e.getMessage() + ")");
         } catch (Exception e) {
             e.printStackTrace();
-            envoyer(exchange, 500, messageErreur("Une erreur interne est survenue."));
+            try {
+                envoyer(exchange, 500, messageErreur("Une erreur interne est survenue."));
+            } catch (IOException ignored) {
+            }
         }
     }
 
@@ -592,12 +598,12 @@ public class Router {
 
             if ("images".equalsIgnoreCase(action)) {
                 if ("POST".equalsIgnoreCase(methode)) {
-                    exigerTokenGestion(exchange);
+                    exigerTokenUtilisateur(exchange);
                     ImageUploadRequest request = lireCorps(exchange, ImageUploadRequest.class);
                     return new Reponse(201, gson.toJson(produitController.televerserImage(request)));
                 }
                 if ("DELETE".equalsIgnoreCase(methode)) {
-                    exigerTokenGestion(exchange);
+                    exigerTokenUtilisateur(exchange);
                     String publicId = extraireParametre(exchange.getRequestURI().getQuery(), "publicId");
                     if (publicId == null || publicId.isBlank()) {
                         throw new IllegalArgumentException("Le paramètre 'publicId' est obligatoire.");

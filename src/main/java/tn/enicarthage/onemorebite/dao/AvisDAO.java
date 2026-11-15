@@ -25,7 +25,7 @@ public class AvisDAO {
     private static final String SELECT_AVIS =
             "SELECT av.id, av.note, av.commentaire, av.date_avis, " +
             "       av.client_id, av.commercant_id, " +
-            "       cli_u.nom AS client_nom, comm_u.nom AS commercant_nom " +
+            "       cli_u.nom AS client_nom, cli_u.photo_url AS client_photo_url, comm_u.nom AS commercant_nom " +
             "FROM avis av " +
             "INNER JOIN client cli ON cli.id = av.client_id " +
             "INNER JOIN utilisateur cli_u ON cli_u.id = cli.id " +
@@ -153,7 +153,8 @@ public class AvisDAO {
                 rs.getInt("client_id"),
                 rs.getString("client_nom"),
                 rs.getInt("commercant_id"),
-                rs.getString("commercant_nom")
+                rs.getString("commercant_nom"),
+                rs.getString("client_photo_url")
         );
     }
 }

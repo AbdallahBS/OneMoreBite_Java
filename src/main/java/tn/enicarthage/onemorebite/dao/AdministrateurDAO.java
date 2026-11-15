@@ -14,7 +14,7 @@ import java.util.Optional;
 public class AdministrateurDAO {
 
     public Optional<Administrateur> trouverParEmail(String email) {
-        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, u.statut " +
+        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, u.photo_url, u.statut " +
                      "FROM utilisateur u " +
                      "INNER JOIN administrateur a ON u.id = a.id " +
                      "WHERE u.email = ?";
@@ -35,7 +35,7 @@ public class AdministrateurDAO {
     }
 
     public Optional<Administrateur> trouverParId(int id) {
-        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, u.statut " +
+        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, u.photo_url, u.statut " +
                      "FROM utilisateur u " +
                      "INNER JOIN administrateur a ON u.id = a.id " +
                      "WHERE u.id = ?";
@@ -165,8 +165,8 @@ public class AdministrateurDAO {
     /**
      * Met à jour les champs communs du profil administrateur (table utilisateur).
      */
-    public boolean mettreAJourProfil(int id, String nom, String email, String telephone, String motDePasseHache) {
-        String sql = "UPDATE utilisateur SET nom = ?, email = ?, telephone = ?, mot_de_passe = ? WHERE id = ?";
+    public boolean mettreAJourProfil(int id, String nom, String email, String telephone, String motDePasseHache, String photoUrl) {
+        String sql = "UPDATE utilisateur SET nom = ?, email = ?, telephone = ?, mot_de_passe = ?, photo_url = ? WHERE id = ?";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
@@ -174,7 +174,8 @@ public class AdministrateurDAO {
             stmt.setString(2, email);
             stmt.setString(3, telephone);
             stmt.setString(4, motDePasseHache);
-            stmt.setInt(5, id);
+            stmt.setString(5, photoUrl);
+            stmt.setInt(6, id);
             return stmt.executeUpdate() > 0;
         } catch (SQLException e) {
             if (e.getSQLState() != null && e.getSQLState().startsWith("23")) {
@@ -225,6 +226,7 @@ public class AdministrateurDAO {
                 rs.getString("telephone")
         );
         admin.setStatutCompte(StatutCompteUtilisateur.versApi(rs.getString("statut")));
+        admin.setPhotoUrl(rs.getString("photo_url"));
         return admin;
     }
 

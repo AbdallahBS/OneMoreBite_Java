@@ -149,7 +149,8 @@ public class AuthService {
                     c.getEmail(),
                     c.getTelephone(),
                     c.getLocalisation(),
-                    c.getStatut()
+                    c.getStatut(),
+                    c.getPhotoUrl()
             );
         }
 
@@ -162,7 +163,8 @@ public class AuthService {
                     client.getNom(),
                     client.getEmail(),
                     client.getTelephone(),
-                    "CLIENT"
+                    "CLIENT",
+                    client.getPhotoUrl()
             );
         }
 
@@ -179,7 +181,8 @@ public class AuthService {
                 admin.getNom(),
                 admin.getEmail(),
                 admin.getTelephone(),
-                "ADMIN"
+                "ADMIN",
+                admin.getPhotoUrl()
         );
     }
 
@@ -202,16 +205,18 @@ public class AuthService {
             String email = resoudreEmail(req, client.getEmail(), claims.id());
             String telephone = resoudreTelephone(req, client.getTelephone());
             String motDePasseHache = resoudreMotDePasse(req, client.getMotDePasse());
+            String photoUrl = req.photoUrl() != null ? req.photoUrl().trim() : client.getPhotoUrl();
 
-            if (!clientDAO.mettreAJourProfil(client.getId(), nom, email, telephone, motDePasseHache)) {
+            if (!clientDAO.mettreAJourProfil(client.getId(), nom, email, telephone, motDePasseHache, photoUrl)) {
                 throw new ResourceNotFoundException("Compte client non trouvé.");
             }
             client.setNom(nom);
             client.setEmail(email);
             client.setTelephone(telephone);
+            client.setPhotoUrl(photoUrl);
 
             return new ClientResponse(client.getId(), client.getNom(), client.getEmail(),
-                    client.getTelephone(), "CLIENT");
+                    client.getTelephone(), "CLIENT", client.getPhotoUrl());
         }
 
         if ("COMMERCANT".equals(role)) {
@@ -223,6 +228,7 @@ public class AuthService {
             String telephone = resoudreTelephone(req, commercant.getTelephone());
             String motDePasseHache = resoudreMotDePasse(req, commercant.getMotDePasse());
             String localisation = commercant.getLocalisation();
+            String photoUrl = req.photoUrl() != null ? req.photoUrl().trim() : commercant.getPhotoUrl();
 
             // La localisation n'est prise en compte que pour un COMMERCANT.
             if (req.localisation() != null) {
@@ -233,16 +239,17 @@ public class AuthService {
             }
 
             if (!commercantDAO.mettreAJourProfil(commercant.getId(), nom, email, telephone,
-                    motDePasseHache, localisation)) {
+                    motDePasseHache, localisation, photoUrl)) {
                 throw new ResourceNotFoundException("Compte commerçant non trouvé.");
             }
             commercant.setNom(nom);
             commercant.setEmail(email);
             commercant.setTelephone(telephone);
             commercant.setLocalisation(localisation);
+            commercant.setPhotoUrl(photoUrl);
 
             return new CommercantResponse(commercant.getId(), commercant.getNom(), commercant.getEmail(),
-                    commercant.getTelephone(), commercant.getLocalisation(), commercant.getStatut());
+                    commercant.getTelephone(), commercant.getLocalisation(), commercant.getStatut(), commercant.getPhotoUrl());
         }
 
         if ("ADMIN".equals(role)) {
@@ -253,16 +260,18 @@ public class AuthService {
             String email = resoudreEmail(req, admin.getEmail(), claims.id());
             String telephone = resoudreTelephone(req, admin.getTelephone());
             String motDePasseHache = resoudreMotDePasse(req, admin.getMotDePasse());
+            String photoUrl = req.photoUrl() != null ? req.photoUrl().trim() : admin.getPhotoUrl();
 
-            if (!administrateurDAO.mettreAJourProfil(admin.getId(), nom, email, telephone, motDePasseHache)) {
+            if (!administrateurDAO.mettreAJourProfil(admin.getId(), nom, email, telephone, motDePasseHache, photoUrl)) {
                 throw new ResourceNotFoundException("Compte administrateur non trouvé.");
             }
             admin.setNom(nom);
             admin.setEmail(email);
             admin.setTelephone(telephone);
+            admin.setPhotoUrl(photoUrl);
 
             return new AdminResponse(admin.getId(), admin.getNom(), admin.getEmail(),
-                    admin.getTelephone(), "ADMIN");
+                    admin.getTelephone(), "ADMIN", admin.getPhotoUrl());
         }
 
         throw new AuthenticationException("Session invalide : rôle inconnu.");

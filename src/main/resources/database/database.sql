@@ -11,6 +11,7 @@ CREATE TABLE utilisateur (
                              mot_de_passe VARCHAR(255) NOT NULL,
                              statut ENUM('ACTIF', 'EN_ATTENTE', 'REJETE', 'DESACTIVE') NOT NULL DEFAULT 'ACTIF',
                              telephone VARCHAR(30),
+                             photo_url VARCHAR(500),
                              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -44,7 +45,7 @@ CREATE TABLE produit (
                          description TEXT,
                          prix DECIMAL(10, 3) NOT NULL,
                          quantite INT NOT NULL DEFAULT 0,
-                         image_url VARCHAR(500),
+                         image_url TEXT,
                          date_expiration DATE,
                          disponibilite BOOLEAN DEFAULT TRUE,
                          commercant_id INT NOT NULL,

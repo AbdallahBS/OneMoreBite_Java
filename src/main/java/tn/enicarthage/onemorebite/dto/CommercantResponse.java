@@ -6,5 +6,6 @@ public record CommercantResponse(
         String email,
         String telephone,
         String localisation,
-        String statut
+        String statut,
+        String photoUrl
 ) {}

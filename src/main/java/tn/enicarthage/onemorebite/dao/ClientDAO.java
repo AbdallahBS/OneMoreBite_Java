@@ -28,7 +28,7 @@ public class ClientDAO {
     }
 
     public Optional<Client> trouverParEmail(String email) {
-        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, u.statut " +
+        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, u.photo_url, u.statut " +
                      "FROM utilisateur u " +
                      "INNER JOIN client c ON u.id = c.id " +
                      "WHERE u.email = ?";
@@ -49,7 +49,7 @@ public class ClientDAO {
     }
 
     public Optional<Client> trouverParId(int id) {
-        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, u.statut " +
+        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, u.photo_url, u.statut " +
                      "FROM utilisateur u " +
                      "INNER JOIN client c ON u.id = c.id " +
                      "WHERE u.id = ?";
@@ -151,8 +151,8 @@ public class ClientDAO {
      * Met à jour les champs communs du profil (table utilisateur).
      * Les valeurs transmises sont déjà validées et normalisées par le service.
      */
-    public boolean mettreAJourProfil(int id, String nom, String email, String telephone, String motDePasseHache) {
-        String sql = "UPDATE utilisateur SET nom = ?, email = ?, telephone = ?, mot_de_passe = ? WHERE id = ?";
+    public boolean mettreAJourProfil(int id, String nom, String email, String telephone, String motDePasseHache, String photoUrl) {
+        String sql = "UPDATE utilisateur SET nom = ?, email = ?, telephone = ?, mot_de_passe = ?, photo_url = ? WHERE id = ?";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
@@ -160,7 +160,8 @@ public class ClientDAO {
             stmt.setString(2, email);
             stmt.setString(3, telephone);
             stmt.setString(4, motDePasseHache);
-            stmt.setInt(5, id);
+            stmt.setString(5, photoUrl);
+            stmt.setInt(6, id);
             return stmt.executeUpdate() > 0;
         } catch (SQLException e) {
             if (e.getSQLState() != null && e.getSQLState().startsWith("23")) {
@@ -171,13 +172,16 @@ public class ClientDAO {
     }
 
     /**
-     * Supprime le compte et ses réservations. Le client, ses avis et ses
-     * commandes sont nettoyés dans une transaction : suppression explicite des
-     * réservations (la contrainte du schéma est ON DELETE SET NULL) puis de la
-     * ligne utilisateur (cascade sur client et avis).
+     * Supprime le compte client et l'ensemble de ses données associées :
+     * 1. Les avis rédigés par le client
+     * 2. Les commandes / réservations passées par le client
+     * 3. L'enregistrement client
+     * 4. L'enregistrement utilisateur racine
      */
     public boolean supprimer(int id) {
+        String sqlAvis = "DELETE FROM avis WHERE client_id = ?";
         String sqlReservations = "DELETE FROM commande WHERE client_id = ?";
+        String sqlClient = "DELETE FROM client WHERE id = ?";
         String sqlUtilisateur = "DELETE FROM utilisateur WHERE id = ?";
 
         Connection conn = null;
@@ -185,9 +189,19 @@ public class ClientDAO {
             conn = DatabaseConnection.getConnection();
             conn.setAutoCommit(false);
 
+            try (PreparedStatement stmtAvis = conn.prepareStatement(sqlAvis)) {
+                stmtAvis.setInt(1, id);
+                stmtAvis.executeUpdate();
+            }
+
             try (PreparedStatement stmtReservations = conn.prepareStatement(sqlReservations)) {
                 stmtReservations.setInt(1, id);
                 stmtReservations.executeUpdate();
+            }
+
+            try (PreparedStatement stmtClient = conn.prepareStatement(sqlClient)) {
+                stmtClient.setInt(1, id);
+                stmtClient.executeUpdate();
             }
 
             boolean supprime;
@@ -206,7 +220,7 @@ public class ClientDAO {
                     ex.printStackTrace();
                 }
             }
-            throw new RuntimeException("Erreur lors de la suppression du compte client.", e);
+            throw new RuntimeException("Erreur lors de la suppression du compte client et de ses données associées : " + e.getMessage(), e);
         } finally {
             if (conn != null) {
                 try {
@@ -228,6 +242,7 @@ public class ClientDAO {
                 rs.getString("telephone")
         );
         client.setStatutCompte(StatutCompteUtilisateur.versApi(rs.getString("statut")));
+        client.setPhotoUrl(rs.getString("photo_url"));
         return client;
     }
 }

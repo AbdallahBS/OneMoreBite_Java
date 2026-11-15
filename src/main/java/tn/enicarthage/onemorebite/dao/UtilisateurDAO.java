@@ -19,7 +19,7 @@ import java.util.Optional;
 public class UtilisateurDAO {
 
     private static final String SELECT_UTILISATEUR =
-            "SELECT u.id, u.nom, u.email, u.telephone, u.statut, " +
+            "SELECT u.id, u.nom, u.email, u.telephone, u.photo_url, u.statut, " +
             "       CASE WHEN a.id IS NOT NULL THEN 'ADMIN' " +
             "            WHEN c.id IS NOT NULL THEN 'COMMERCANT' " +
             "            WHEN cl.id IS NOT NULL THEN 'CLIENT' END AS role, " +
@@ -171,7 +171,8 @@ public class UtilisateurDAO {
                 rs.getString("telephone"),
                 role,
                 statut,
-                rs.getString("localisation")
+                rs.getString("localisation"),
+                rs.getString("photo_url")
         );
     }
 }

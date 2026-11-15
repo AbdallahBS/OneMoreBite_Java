@@ -27,7 +27,7 @@ public class CommercantDAO {
     }
 
     public Optional<Commercant> trouverParEmail(String email) {
-        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, c.localisation, c.statut, " +
+        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, u.photo_url, c.localisation, c.statut, " +
                      "       u.statut AS statut_compte " +
                      "FROM utilisateur u " +
                      "INNER JOIN commercant c ON u.id = c.id " +
@@ -49,7 +49,7 @@ public class CommercantDAO {
     }
 
     public Optional<Commercant> trouverParId(int id) {
-        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, c.localisation, c.statut, " +
+        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, u.photo_url, c.localisation, c.statut, " +
                      "       u.statut AS statut_compte " +
                      "FROM utilisateur u " +
                      "INNER JOIN commercant c ON u.id = c.id " +
@@ -133,7 +133,7 @@ public class CommercantDAO {
 
     public List<Commercant> listerTous() {
         List<Commercant> commercants = new ArrayList<>();
-        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, c.localisation, c.statut, " +
+        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, u.photo_url, c.localisation, c.statut, " +
                      "       u.statut AS statut_compte " +
                      "FROM utilisateur u " +
                      "INNER JOIN commercant c ON u.id = c.id " +
@@ -154,7 +154,7 @@ public class CommercantDAO {
 
     public List<Commercant> listerParStatut(String statut) {
         List<Commercant> commercants = new ArrayList<>();
-        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, c.localisation, c.statut, " +
+        String sql = "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, u.photo_url, c.localisation, c.statut, " +
                      "       u.statut AS statut_compte " +
                      "FROM utilisateur u " +
                      "INNER JOIN commercant c ON u.id = c.id " +
@@ -239,7 +239,7 @@ public class CommercantDAO {
     public List<Commercant> listerActifsAvecRecherche(String recherche) {
         List<Commercant> commercants = new ArrayList<>();
         StringBuilder sql = new StringBuilder(
-                "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, c.localisation, c.statut, " +
+                "SELECT u.id, u.nom, u.email, u.mot_de_passe, u.telephone, u.photo_url, c.localisation, c.statut, " +
                 "       u.statut AS statut_compte " +
                 "FROM utilisateur u " +
                 "INNER JOIN commercant c ON u.id = c.id " +
@@ -277,8 +277,8 @@ public class CommercantDAO {
      * (table utilisateur) et localisation (table commercant).
      */
     public boolean mettreAJourProfil(int id, String nom, String email, String telephone,
-                                     String motDePasseHache, String localisation) {
-        String sqlUser = "UPDATE utilisateur SET nom = ?, email = ?, telephone = ?, mot_de_passe = ? WHERE id = ?";
+                                     String motDePasseHache, String localisation, String photoUrl) {
+        String sqlUser = "UPDATE utilisateur SET nom = ?, email = ?, telephone = ?, mot_de_passe = ?, photo_url = ? WHERE id = ?";
         String sqlCommercant = "UPDATE commercant SET localisation = ? WHERE id = ?";
 
         Connection conn = null;
@@ -292,7 +292,8 @@ public class CommercantDAO {
                 stmtUser.setString(2, email);
                 stmtUser.setString(3, telephone);
                 stmtUser.setString(4, motDePasseHache);
-                stmtUser.setInt(5, id);
+                stmtUser.setString(5, photoUrl);
+                stmtUser.setInt(6, id);
                 updated = stmtUser.executeUpdate();
             }
 
@@ -334,18 +335,71 @@ public class CommercantDAO {
     }
 
     /**
-     * Supprime le compte. Les produits, réservations et avis liés sont supprimés
-     * par les contraintes ON DELETE CASCADE du schéma.
+     * Supprime le compte commerçant ainsi que toutes ses données associées dans une même transaction :
+     * 1. Les avis laissés sur le commerçant
+     * 2. Les réservations passées sur les paniers du commerçant
+     * 3. L'ensemble des produits / paniers du commerçant
+     * 4. L'enregistrement commerçant
+     * 5. L'enregistrement utilisateur racine
      */
     public boolean supprimer(int id) {
-        String sql = "DELETE FROM utilisateur WHERE id = ?";
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        String sqlAvis = "DELETE FROM avis WHERE commercant_id = ?";
+        String sqlCommandes = "DELETE c FROM commande c INNER JOIN produit p ON c.produit_id = p.id WHERE p.commercant_id = ?";
+        String sqlProduits = "DELETE FROM produit WHERE commercant_id = ?";
+        String sqlCommercant = "DELETE FROM commercant WHERE id = ?";
+        String sqlUtilisateur = "DELETE FROM utilisateur WHERE id = ?";
 
-            stmt.setInt(1, id);
-            return stmt.executeUpdate() > 0;
+        Connection conn = null;
+        try {
+            conn = DatabaseConnection.getConnection();
+            conn.setAutoCommit(false);
+
+            try (PreparedStatement stmt = conn.prepareStatement(sqlAvis)) {
+                stmt.setInt(1, id);
+                stmt.executeUpdate();
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement(sqlCommandes)) {
+                stmt.setInt(1, id);
+                stmt.executeUpdate();
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement(sqlProduits)) {
+                stmt.setInt(1, id);
+                stmt.executeUpdate();
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement(sqlCommercant)) {
+                stmt.setInt(1, id);
+                stmt.executeUpdate();
+            }
+
+            boolean supprime;
+            try (PreparedStatement stmt = conn.prepareStatement(sqlUtilisateur)) {
+                stmt.setInt(1, id);
+                supprime = stmt.executeUpdate() > 0;
+            }
+
+            conn.commit();
+            return supprime;
         } catch (SQLException e) {
-            throw new RuntimeException("Erreur lors de la suppression du compte commerçant.", e);
+            if (conn != null) {
+                try {
+                    conn.rollback();
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+            }
+            throw new RuntimeException("Erreur lors de la suppression du compte commerçant et de ses données associées : " + e.getMessage(), e);
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.setAutoCommit(true);
+                    conn.close();
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+            }
         }
     }
 
@@ -361,6 +415,7 @@ public class CommercantDAO {
         );
         commercant.setStatutCompte(StatutCompteUtilisateur.resoudreStatutCommercant(
                 rs.getString("statut_compte"), rs.getString("statut")));
+        commercant.setPhotoUrl(rs.getString("photo_url"));
         return commercant;
     }
 }

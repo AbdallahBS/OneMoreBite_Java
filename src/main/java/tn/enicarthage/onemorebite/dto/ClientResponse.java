@@ -5,5 +5,6 @@ public record ClientResponse(
         String nom,
         String email,
         String telephone,
-        String role
+        String role,
+        String photoUrl
 ) {}

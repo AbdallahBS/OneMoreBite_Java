@@ -14,5 +14,6 @@ public record AvisResponse(
         int clientId,
         String clientNom,
         int commercantId,
-        String commercantNom
+        String commercantNom,
+        String clientPhotoUrl
 ) {}

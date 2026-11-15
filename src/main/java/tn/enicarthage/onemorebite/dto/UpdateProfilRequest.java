@@ -6,5 +6,6 @@ public record UpdateProfilRequest(
         String telephone,
         String motDePasse,
         String ancienMotDePasse,
-        String localisation
+        String localisation,
+        String photoUrl
 ) {}

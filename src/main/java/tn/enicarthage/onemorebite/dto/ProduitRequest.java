@@ -1,7 +1,7 @@
 package tn.enicarthage.onemorebite.dto;
 
-
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * Requête de création / mise à jour d'un produit.
@@ -13,6 +13,7 @@ public record ProduitRequest(
         Double prix,
         Integer quantite,
         String imageUrl,
+        List<String> images,
         LocalDate dateExpiration,
         Boolean disponibilite,
         Integer commercantId

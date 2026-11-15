@@ -2,6 +2,8 @@ package tn.enicarthage.onemorebite;
 
 import java.io.IOException;
 import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import tn.enicarthage.onemorebite.config.DatabaseConnection;
 import tn.enicarthage.onemorebite.controller.AuthController;
 
@@ -96,10 +98,34 @@ public class Main {
     private static boolean testerConnexion() {
         try (Connection connection = DatabaseConnection.getConnection()) {
             System.out.println("Connexion réussie à MySQL.");
+            verifierEtAppliquerMigrations(connection);
             return true;
         } catch (Exception e) {
             System.out.println("Erreur de connexion : " + e.getMessage());
             return false;
+        }
+    }
+
+    private static void verifierEtAppliquerMigrations(Connection conn) {
+        try (Statement stmt = conn.createStatement()) {
+            // 1. Ajouter photo_url à utilisateur si absent
+            try {
+                stmt.executeUpdate("ALTER TABLE utilisateur ADD COLUMN photo_url VARCHAR(500) DEFAULT NULL AFTER telephone");
+                System.out.println("Migration automatique : colonne 'photo_url' ajoutée à la table 'utilisateur'.");
+            } catch (SQLException e) {
+                // Code 1060 : Duplicate column name (déjà présente)
+                if (e.getErrorCode() != 1060) {
+                    System.out.println("Info migration photo_url : " + e.getMessage());
+                }
+            }
+
+            // 2. Agrandir image_url de produit en TEXT pour multi-images
+            try {
+                stmt.executeUpdate("ALTER TABLE produit MODIFY COLUMN image_url TEXT");
+            } catch (SQLException ignored) {
+            }
+        } catch (Exception e) {
+            System.out.println("Avertissement migrations automatiques : " + e.getMessage());
         }
     }
 }

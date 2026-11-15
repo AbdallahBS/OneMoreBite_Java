@@ -15,7 +15,7 @@ import java.util.List;
 
 public class ProduitService {
 
-    private static final int LONGUEUR_MAX_IMAGE_URL = 500;
+    private static final int LONGUEUR_MAX_IMAGE_URL = 5000;
 
     private final ProduitDAO produitDAO = new ProduitDAO();
     private final CommercantDAO commercantDAO = new CommercantDAO();
@@ -72,7 +72,7 @@ public class ProduitService {
         p.setDescription(req.description());
         p.setPrix(req.prix());
         p.setQuantite(quantite);
-        p.setImageUrl(normaliserImageUrl(req.imageUrl()));
+        p.setImageUrl(resoudreImages(req.imageUrl(), req.images()));
         p.setDateExpiration(req.dateExpiration());
         p.setDisponibilite(req.disponibilite() != null ? req.disponibilite() : true);
         p.setCommercantId(commercantId);
@@ -111,8 +111,8 @@ public class ProduitService {
             }
             p.setQuantite(req.quantite());
         }
-        if (req.imageUrl() != null) {
-            p.setImageUrl(normaliserImageUrl(req.imageUrl()));
+        if (req.images() != null || req.imageUrl() != null) {
+            p.setImageUrl(resoudreImages(req.imageUrl(), req.images()));
         }
         if (req.dateExpiration() != null) {
             p.setDateExpiration(req.dateExpiration());
@@ -222,6 +222,37 @@ public class ProduitService {
         return claims != null && "ADMIN".equalsIgnoreCase(claims.role());
     }
 
+    private String resoudreImages(String imageUrl, java.util.List<String> images) {
+        if (images != null && !images.isEmpty()) {
+            java.util.List<String> validees = new java.util.ArrayList<>();
+            for (String img : images) {
+                if (img != null && !img.isBlank()) {
+                    String norm = normaliserSingleUrl(img.trim());
+                    if (norm != null) {
+                        validees.add(norm);
+                    }
+                }
+            }
+            if (!validees.isEmpty()) {
+                String joined = String.join(",", validees);
+                if (joined.length() > LONGUEUR_MAX_IMAGE_URL) {
+                    throw new IllegalArgumentException("Les URLs d'images combinées dépassent la taille maximale autorisée.");
+                }
+                return joined;
+            }
+        }
+        return normaliserImageUrl(imageUrl);
+    }
+
+    private String normaliserSingleUrl(String url) {
+        if (url == null || url.isBlank()) return null;
+        String v = url.trim();
+        if (!v.startsWith("http://") && !v.startsWith("https://") && !v.startsWith("data:image/")) {
+            throw new IllegalArgumentException("L'URL de l'image doit commencer par http://, https:// ou data:image/ : " + v);
+        }
+        return v;
+    }
+
     private String normaliserImageUrl(String imageUrl) {
         if (imageUrl == null) {
             return null;
@@ -230,12 +261,15 @@ public class ProduitService {
         if (valeur.isEmpty()) {
             return null;
         }
-        if (!valeur.startsWith("http://") && !valeur.startsWith("https://")) {
-            throw new IllegalArgumentException("L'URL de l'image doit commencer par http:// ou https://.");
+        if (valeur.contains(",")) {
+            String[] parts = valeur.split(",");
+            java.util.List<String> vList = new java.util.ArrayList<>();
+            for (String p : parts) {
+                String single = normaliserSingleUrl(p);
+                if (single != null) vList.add(single);
+            }
+            return String.join(",", vList);
         }
-        if (valeur.length() > LONGUEUR_MAX_IMAGE_URL) {
-            throw new IllegalArgumentException("L'URL de l'image est trop longue (maximum " + LONGUEUR_MAX_IMAGE_URL + " caractères).");
-        }
-        return valeur;
+        return normaliserSingleUrl(valeur);
     }
 }

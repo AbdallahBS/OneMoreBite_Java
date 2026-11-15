@@ -11,5 +11,6 @@ public record UtilisateurResponse(
         String telephone,
         String role,
         String statut,
-        String localisation
+        String localisation,
+        String photoUrl
 ) {}

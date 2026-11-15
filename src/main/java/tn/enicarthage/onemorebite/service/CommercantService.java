@@ -151,7 +151,8 @@ public class CommercantService {
                 c.getEmail(),
                 c.getTelephone(),
                 c.getLocalisation(),
-                c.getStatut()
+                c.getStatut(),
+                c.getPhotoUrl()
         );
     }
 
@@ -160,7 +161,8 @@ public class CommercantService {
                 c.getId(),
                 c.getNom(),
                 c.getLocalisation(),
-                c.getTelephone()
+                c.getTelephone(),
+                c.getPhotoUrl()
         );
     }
 }

@@ -8,7 +8,8 @@ public record CommercantPublicResponse(
         int id,
         String nom,
         String localisation,
-        String telephone
+        String telephone,
+        String photoUrl
 ) {
     public CommercantPublicResponse {
         // Le téléphone est optionnel en base. On garantit toutefois la présence

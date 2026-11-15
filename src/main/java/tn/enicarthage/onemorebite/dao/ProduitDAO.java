@@ -89,7 +89,7 @@ public class ProduitDAO {
             stmt.setString(2, p.getDescription());
             stmt.setDouble(3, p.getPrix());
             stmt.setInt(4, p.getQuantite());
-            stmt.setString(5, p.getImageUrl());
+            stmt.setString(5, p.getRawImageUrl());
             stmt.setDate(6, p.getDateExpiration() != null ? Date.valueOf(p.getDateExpiration()) : null);
             stmt.setBoolean(7, p.isDisponibilite());
             stmt.setInt(8, p.getCommercantId());
@@ -118,7 +118,7 @@ public class ProduitDAO {
             stmt.setString(2, p.getDescription());
             stmt.setDouble(3, p.getPrix());
             stmt.setInt(4, p.getQuantite());
-            stmt.setString(5, p.getImageUrl());
+            stmt.setString(5, p.getRawImageUrl());
             stmt.setDate(6, p.getDateExpiration() != null ? Date.valueOf(p.getDateExpiration()) : null);
             stmt.setBoolean(7, p.isDisponibilite());
             stmt.setInt(8, p.getCommercantId());
