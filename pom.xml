@@ -33,6 +33,11 @@
             <artifactId>jbcrypt</artifactId>
             <version>0.4</version>
         </dependency>
+        <dependency>
+            <groupId>com.resend</groupId>
+            <artifactId>resend-java</artifactId>
+            <version>4.30.0</version>
+        </dependency>
     </dependencies>
     <build>
         <finalName>onemorebite</finalName>

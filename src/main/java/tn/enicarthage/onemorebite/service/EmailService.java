@@ -1,13 +1,13 @@
 package tn.enicarthage.onemorebite.service;
 
-import tn.enicarthage.onemorebite.config.EmailConfig;
 import tn.enicarthage.onemorebite.dto.ReservationResponse;
 
-import javax.net.ssl.SSLSocketFactory;
-import java.io.*;
-import java.net.Socket;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
+import com.resend.Resend;
+import com.resend.core.exception.ResendException;
+import com.resend.services.emails.model.CreateEmailOptions;
+import com.resend.services.emails.model.CreateEmailResponse;
+
+import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -183,127 +183,43 @@ public class EmailService {
         envoyerEmailAsync(emailCommercant, sujet, html);
     }
 
-    public void envoyerEmail(String destinataire, String sujet, String contenuHtml) throws IOException {
-        String host = EmailConfig.host();
-        int port = EmailConfig.port();
-        String user = EmailConfig.user();
-        String password = EmailConfig.password();
-        String fromName = EmailConfig.fromName();
 
-        if (user == null || user.isBlank() || password == null || password.isBlank()) {
-            System.out.println("[EmailService] SMTP_USER ou SMTP_PASSWORD non renseigné dans .env. Email non envoyé sur le réseau (simulé en console pour: " + destinataire + ")");
-            return;
+    public void envoyerEmail(String destinataire, String sujet, String contenuHtml)
+            throws IOException {
+
+        String apiKey = System.getenv("RESEND_API_KEY");
+
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IOException("RESEND_API_KEY non configurée.");
         }
 
-        Socket socket;
-        if (port == 465) {
-            SSLSocketFactory sf = (SSLSocketFactory) SSLSocketFactory.getDefault();
-            socket = sf.createSocket(host, port);
-        } else {
-            socket = new Socket(host, port);
-        }
-
-        socket.setSoTimeout(15000);
-
-        BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
-        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
+        String from = System.getenv().getOrDefault(
+                "RESEND_FROM_EMAIL",
+                "One More Bite <onboarding@resend.dev>"
+        );
 
         try {
-            // Lecture de la bannière initiale SMTP
-            lireReponse(reader, 220);
+            Resend resend = new Resend(apiKey);
 
-            // EHLO
-            ecrireLigne(writer, "EHLO localhost");
-            lireReponse(reader, 250);
+            CreateEmailOptions params = CreateEmailOptions.builder()
+                    .from(from)
+                    .to(destinataire)
+                    .subject(sujet)
+                    .html(contenuHtml)
+                    .build();
 
-            // Mise à niveau STARTTLS si port 587
-            if (port != 465) {
-                ecrireLigne(writer, "STARTTLS");
-                lireReponse(reader, 220);
-                SSLSocketFactory sf = (SSLSocketFactory) SSLSocketFactory.getDefault();
-                socket = sf.createSocket(socket, host, port, true);
-                reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
-                writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
-                ecrireLigne(writer, "EHLO localhost");
-                lireReponse(reader, 250);
-            }
+            CreateEmailResponse response = resend.emails().send(params);
 
-            // AUTH LOGIN
-            ecrireLigne(writer, "AUTH LOGIN");
-            lireReponse(reader, 334);
+            System.out.println(
+                    "[EmailService] Email accepté par Resend. ID: "
+                            + response.getId()
+            );
 
-            String userB64 = Base64.getEncoder().encodeToString(user.getBytes(StandardCharsets.UTF_8));
-            ecrireLigne(writer, userB64);
-            lireReponse(reader, 334);
-
-            String cleanPass = password.replace(" ", "");
-            String passB64 = Base64.getEncoder().encodeToString(cleanPass.getBytes(StandardCharsets.UTF_8));
-            ecrireLigne(writer, passB64);
-            lireReponse(reader, 235);
-
-            // MAIL FROM
-            ecrireLigne(writer, "MAIL FROM:<" + user + ">");
-            lireReponse(reader, 250);
-
-            // RCPT TO
-            ecrireLigne(writer, "RCPT TO:<" + destinataire + ">");
-            lireReponse(reader, 250);
-
-            // DATA
-            ecrireLigne(writer, "DATA");
-            lireReponse(reader, 354);
-
-            String encodedSubject = "=?UTF-8?B?" + Base64.getEncoder().encodeToString(sujet.getBytes(StandardCharsets.UTF_8)) + "?=";
-            String encodedFromName = "=?UTF-8?B?" + Base64.getEncoder().encodeToString(fromName.getBytes(StandardCharsets.UTF_8)) + "?=";
-
-            writer.write("From: " + encodedFromName + " <" + user + ">\r\n");
-            writer.write("To: <" + destinataire + ">\r\n");
-            writer.write("Subject: " + encodedSubject + "\r\n");
-            writer.write("MIME-Version: 1.0\r\n");
-            writer.write("Content-Type: text/html; charset=UTF-8\r\n");
-            writer.write("Content-Transfer-Encoding: 8bit\r\n");
-            writer.write("\r\n");
-            writer.write(contenuHtml);
-            writer.write("\r\n.\r\n");
-            writer.flush();
-            lireReponse(reader, 250);
-
-            // QUIT
-            ecrireLigne(writer, "QUIT");
-            try {
-                lireReponse(reader, 221);
-            } catch (Exception ignored) {}
-
-            System.out.println("[EmailService] Email envoyé avec succès via SMTP à " + destinataire + " (« " + sujet + " »)");
-        } finally {
-            try { socket.close(); } catch (Exception ignored) {}
+        } catch (ResendException e) {
+            throw new IOException(
+                    "Erreur lors de l'envoi via Resend: " + e.getMessage(), e
+            );
         }
     }
-
-    private void ecrireLigne(BufferedWriter writer, String ligne) throws IOException {
-        writer.write(ligne);
-        writer.write("\r\n");
-        writer.flush();
-    }
-
-    private String lireReponse(BufferedReader reader, int codeAttendu) throws IOException {
-        String ligne;
-        StringBuilder reponse = new StringBuilder();
-        int dernierCode = -1;
-        while ((ligne = reader.readLine()) != null) {
-            reponse.append(ligne).append("\n");
-            if (ligne.length() >= 3) {
-                try {
-                    dernierCode = Integer.parseInt(ligne.substring(0, 3));
-                } catch (NumberFormatException ignored) {}
-                if (ligne.length() == 3 || ligne.charAt(3) == ' ') {
-                    break;
-                }
-            }
-        }
-        if (dernierCode != codeAttendu) {
-            throw new IOException("Réponse SMTP inattendue : attendu " + codeAttendu + " mais reçu " + dernierCode + " : " + reponse.toString().trim());
-        }
-        return reponse.toString();
-    }
+    
 }
