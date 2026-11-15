@@ -12,7 +12,7 @@ public class ApiServer {
 
     public ApiServer(int port) throws IOException {
         Router router = new Router();
-        this.server = HttpServer.create(new InetSocketAddress(port), 0);
+        this.server = HttpServer.create(new InetSocketAddress("0.0.0.0",port), 0);
         this.server.createContext("/", router::dispatcher);
         this.server.setExecutor(null);
     }

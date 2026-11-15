@@ -13,8 +13,11 @@ import tn.enicarthage.onemorebite.dto.AvisRequest;
 import tn.enicarthage.onemorebite.dto.AvisUpdateRequest;
 import tn.enicarthage.onemorebite.dto.ClientRegisterRequest;
 import tn.enicarthage.onemorebite.dto.CommercantRegisterRequest;
+import tn.enicarthage.onemorebite.dto.GoogleAuthRequest;
 import tn.enicarthage.onemorebite.dto.ImageUploadRequest;
 import tn.enicarthage.onemorebite.dto.LoginRequest;
+import tn.enicarthage.onemorebite.dto.OtpRenvoyerRequest;
+import tn.enicarthage.onemorebite.dto.OtpVerificationRequest;
 import tn.enicarthage.onemorebite.dto.ProduitDisponibiliteRequest;
 import tn.enicarthage.onemorebite.dto.ProduitRequest;
 import tn.enicarthage.onemorebite.dto.ProduitStockRequest;
@@ -149,6 +152,27 @@ public class Router {
                     }
                     String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
                     yield new Reponse(200, gson.toJson(authController.me(authHeader)));
+                }
+                case "verifier-otp" -> {
+                    if (!"POST".equalsIgnoreCase(methode)) {
+                        throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                    }
+                    OtpVerificationRequest req = lireCorps(exchange, OtpVerificationRequest.class);
+                    yield new Reponse(200, gson.toJson(authController.verifierOtp(req)));
+                }
+                case "renvoyer-otp" -> {
+                    if (!"POST".equalsIgnoreCase(methode)) {
+                        throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                    }
+                    OtpRenvoyerRequest req = lireCorps(exchange, OtpRenvoyerRequest.class);
+                    yield new Reponse(200, gson.toJson(authController.renvoyerOtp(req)));
+                }
+                case "google" -> {
+                    if (!"POST".equalsIgnoreCase(methode)) {
+                        throw new IllegalArgumentException("Méthode non supportée: " + methode);
+                    }
+                    GoogleAuthRequest req = lireCorps(exchange, GoogleAuthRequest.class);
+                    yield new Reponse(200, gson.toJson(authController.loginAvecGoogle(req)));
                 }
                 default -> throw new ResourceNotFoundException("Action inconnue: /" + segments[1] + "/" + action);
             };

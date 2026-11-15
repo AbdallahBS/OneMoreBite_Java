@@ -1,5 +1,6 @@
 package tn.enicarthage.onemorebite.service;
 
+import tn.enicarthage.onemorebite.dao.CommercantDAO;
 import tn.enicarthage.onemorebite.dao.ProduitDAO;
 import tn.enicarthage.onemorebite.dao.ReservationDAO;
 import tn.enicarthage.onemorebite.dto.ReservationRequest;
@@ -27,6 +28,8 @@ public class ReservationService {
 
     private final ReservationDAO reservationDAO = new ReservationDAO();
     private final ProduitDAO produitDAO = new ProduitDAO();
+    private final CommercantDAO commercantDAO = new CommercantDAO();
+    private final EmailService emailService = new EmailService();
 
     public ReservationResponse creer(ReservationRequest req, JwtUtil.JwtClaims claims) {
         JwtUtil.JwtClaims utilisateur = exigerClient(claims);
@@ -126,7 +129,18 @@ public class ReservationService {
         if (!reservationDAO.annuler(id, utilisateur.id())) {
             verifierEchecClient(id, utilisateur.id(), "annulées");
         }
-        return trouverReservation(id);
+
+        ReservationResponse miseAJour = trouverReservation(id);
+        // Notifier le commerçant par email de l'annulation
+        try {
+            commercantDAO.trouverParId(miseAJour.commercantId()).ifPresent(comm -> {
+                emailService.notifierAnnulationReservationAsync(miseAJour, comm.getEmail());
+            });
+        } catch (Exception e) {
+            System.err.println("[ReservationService] Erreur notification annulation : " + e.getMessage());
+        }
+
+        return miseAJour;
     }
 
     public ReservationResponse confirmer(int id, JwtUtil.JwtClaims claims) {
@@ -139,7 +153,16 @@ public class ReservationService {
         if (!reservationDAO.changerStatutParCommercant(id, utilisateur.id(), StatutCommande.CONFIRMEE)) {
             verifierEchecCommercant(id, utilisateur.id(), "confirmées");
         }
-        return trouverReservation(id);
+
+        ReservationResponse miseAJour = trouverReservation(id);
+        // Notifier le client par email de la confirmation
+        try {
+            emailService.notifierConfirmationReservationAsync(miseAJour);
+        } catch (Exception e) {
+            System.err.println("[ReservationService] Erreur notification confirmation : " + e.getMessage());
+        }
+
+        return miseAJour;
     }
 
     public ReservationResponse refuser(int id, JwtUtil.JwtClaims claims) {
@@ -152,7 +175,16 @@ public class ReservationService {
         if (!reservationDAO.changerStatutParCommercant(id, utilisateur.id(), StatutCommande.REFUSEE)) {
             verifierEchecCommercant(id, utilisateur.id(), "refusées");
         }
-        return trouverReservation(id);
+
+        ReservationResponse miseAJour = trouverReservation(id);
+        // Notifier le client par email du refus
+        try {
+            emailService.notifierRefusReservationAsync(miseAJour);
+        } catch (Exception e) {
+            System.err.println("[ReservationService] Erreur notification refus : " + e.getMessage());
+        }
+
+        return miseAJour;
     }
 
     private ReservationResponse trouverReservation(int id) {

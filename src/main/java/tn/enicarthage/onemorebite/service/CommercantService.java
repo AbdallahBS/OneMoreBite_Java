@@ -2,6 +2,7 @@ package tn.enicarthage.onemorebite.service;
 
 import tn.enicarthage.onemorebite.dao.CommercantDAO;
 import tn.enicarthage.onemorebite.dao.StatutCompteUtilisateur;
+import tn.enicarthage.onemorebite.dao.UtilisateurDAO;
 import tn.enicarthage.onemorebite.dto.CommercantPublicResponse;
 import tn.enicarthage.onemorebite.dto.CommercantRegisterRequest;
 import tn.enicarthage.onemorebite.dto.CommercantResponse;
@@ -13,11 +14,15 @@ import tn.enicarthage.onemorebite.model.Commercant;
 import tn.enicarthage.onemorebite.security.JwtUtil;
 import tn.enicarthage.onemorebite.security.PasswordUtil;
 
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public class CommercantService {
 
     private final CommercantDAO commercantDAO = new CommercantDAO();
+    private final UtilisateurDAO utilisateurDAO = new UtilisateurDAO();
+    private final EmailService emailService = new EmailService();
     private final JwtUtil jwtUtil = new JwtUtil();
 
     public CommercantResponse inscrire(CommercantRegisterRequest req) {
@@ -53,6 +58,12 @@ public class CommercantService {
         c.setStatut("EN_ATTENTE"); 
 
         Commercant cree = commercantDAO.creer(c);
+
+        // Générer le code OTP et envoyer l'email de vérification
+        String otp = String.format("%06d", new SecureRandom().nextInt(1_000_000));
+        utilisateurDAO.sauvegarderOtp(email, otp, LocalDateTime.now().plusMinutes(15));
+        emailService.envoyerOtpAsync(email, c.getNom(), otp);
+
         return mapToResponse(cree);
     }
 
@@ -75,6 +86,11 @@ public class CommercantService {
         if (StatutCompteUtilisateur.estDesactive(c.getStatutCompte())) {
             throw new AuthenticationException(
                     "Votre compte a été désactivé par l'administrateur. Veuillez le contacter.");
+        }
+
+        if (!utilisateurDAO.estEmailVerifie(email)) {
+            throw new AuthenticationException(
+                    "Veuillez valider votre adresse email avec le code de vérification reçu.");
         }
 
         if ("EN_ATTENTE".equalsIgnoreCase(c.getStatut())) {

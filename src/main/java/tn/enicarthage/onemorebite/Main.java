@@ -44,7 +44,7 @@ public class Main {
         try {
             ApiServer serveur = new ApiServer(PORT);
             serveur.demarrer();
-            System.out.println("Serveur HTTP démarré sur http://localhost:" + PORT);
+            System.out.println("Serveur HTTP démarré sur http://0.0.0.0:" + PORT);
             System.out.println("Endpoints disponibles :");
             System.out.println("  POST http://localhost:" + PORT + "/auth/login                (Connexion Admin / Commerçant / Client)");
             System.out.println("  GET  http://localhost:" + PORT + "/auth/me                   (Session profil - Bearer Token)");
@@ -98,7 +98,9 @@ public class Main {
     private static boolean testerConnexion() {
         try (Connection connection = DatabaseConnection.getConnection()) {
             System.out.println("Connexion réussie à MySQL.");
-            verifierEtAppliquerMigrations(connection);
+            if (!"production".equalsIgnoreCase(System.getenv("APP_ENV"))) {
+                verifierEtAppliquerMigrations(connection);
+            }
             return true;
         } catch (Exception e) {
             System.out.println("Erreur de connexion : " + e.getMessage());
@@ -123,6 +125,29 @@ public class Main {
             try {
                 stmt.executeUpdate("ALTER TABLE produit MODIFY COLUMN image_url TEXT");
             } catch (SQLException ignored) {
+            }
+
+            // 3. Colonnes pour OTP et vérification email
+            try {
+                stmt.executeUpdate("ALTER TABLE utilisateur ADD COLUMN email_verifie BOOLEAN DEFAULT TRUE AFTER photo_url");
+            } catch (SQLException e) {
+                if (e.getErrorCode() != 1060) {
+                    System.out.println("Info migration email_verifie : " + e.getMessage());
+                }
+            }
+            try {
+                stmt.executeUpdate("ALTER TABLE utilisateur ADD COLUMN code_otp VARCHAR(10) DEFAULT NULL AFTER email_verifie");
+            } catch (SQLException e) {
+                if (e.getErrorCode() != 1060) {
+                    System.out.println("Info migration code_otp : " + e.getMessage());
+                }
+            }
+            try {
+                stmt.executeUpdate("ALTER TABLE utilisateur ADD COLUMN code_otp_expiration DATETIME DEFAULT NULL AFTER code_otp");
+            } catch (SQLException e) {
+                if (e.getErrorCode() != 1060) {
+                    System.out.println("Info migration code_otp_expiration : " + e.getMessage());
+                }
             }
         } catch (Exception e) {
             System.out.println("Avertissement migrations automatiques : " + e.getMessage());

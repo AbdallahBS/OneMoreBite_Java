@@ -20,24 +20,29 @@ public class ProduitDAO {
      */
     public List<Produit> listerAvecFiltres(Integer commercantId, Boolean disponibilite, String recherche) {
         List<Produit> produits = new ArrayList<>();
-        StringBuilder sql = new StringBuilder("SELECT * FROM produit WHERE 1 = 1");
+        StringBuilder sql = new StringBuilder(
+                "SELECT p.*, u.nom AS commercant_nom, c.localisation AS commercant_localisation " +
+                "FROM produit p " +
+                "JOIN commercant c ON c.id = p.commercant_id " +
+                "JOIN utilisateur u ON u.id = c.id " +
+                "WHERE 1 = 1");
         List<Object> parametres = new ArrayList<>();
 
         if (commercantId != null) {
-            sql.append(" AND commercant_id = ?");
+            sql.append(" AND p.commercant_id = ?");
             parametres.add(commercantId);
         }
         if (disponibilite != null) {
-            sql.append(" AND disponibilite = ?");
+            sql.append(" AND p.disponibilite = ?");
             parametres.add(disponibilite);
         }
         if (recherche != null && !recherche.isBlank()) {
-            sql.append(" AND (nom LIKE ? OR description LIKE ?)");
+            sql.append(" AND (p.nom LIKE ? OR p.description LIKE ?)");
             String motif = "%" + recherche.trim() + "%";
             parametres.add(motif);
             parametres.add(motif);
         }
-        sql.append(" ORDER BY id DESC");
+        sql.append(" ORDER BY p.id DESC");
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql.toString())) {
@@ -62,7 +67,11 @@ public class ProduitDAO {
     }
 
     public Optional<Produit> trouverParId(int id) {
-        String sql = "SELECT * FROM produit WHERE id = ?";
+        String sql = "SELECT p.*, u.nom AS commercant_nom, c.localisation AS commercant_localisation " +
+                "FROM produit p " +
+                "JOIN commercant c ON c.id = p.commercant_id " +
+                "JOIN utilisateur u ON u.id = c.id " +
+                "WHERE p.id = ?";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
@@ -206,7 +215,7 @@ public class ProduitDAO {
         Timestamp createdAt = rs.getTimestamp("created_at");
         Timestamp updatedAt = rs.getTimestamp("updated_at");
 
-        return new Produit(
+        Produit produit = new Produit(
                 rs.getInt("id"),
                 rs.getString("nom"),
                 rs.getString("description"),
@@ -219,5 +228,8 @@ public class ProduitDAO {
                 createdAt != null ? createdAt.toLocalDateTime() : null,
                 updatedAt != null ? updatedAt.toLocalDateTime() : null
         );
+        produit.setCommercantNom(rs.getString("commercant_nom"));
+        produit.setCommercantLocalisation(rs.getString("commercant_localisation"));
+        return produit;
     }
 }

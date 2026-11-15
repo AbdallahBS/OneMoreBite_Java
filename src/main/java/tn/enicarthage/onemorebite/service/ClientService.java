@@ -2,6 +2,7 @@ package tn.enicarthage.onemorebite.service;
 
 import tn.enicarthage.onemorebite.dao.ClientDAO;
 import tn.enicarthage.onemorebite.dao.StatutCompteUtilisateur;
+import tn.enicarthage.onemorebite.dao.UtilisateurDAO;
 import tn.enicarthage.onemorebite.dto.ClientRegisterRequest;
 import tn.enicarthage.onemorebite.dto.ClientResponse;
 import tn.enicarthage.onemorebite.dto.LoginRequest;
@@ -11,6 +12,8 @@ import tn.enicarthage.onemorebite.model.Client;
 import tn.enicarthage.onemorebite.security.JwtUtil;
 import tn.enicarthage.onemorebite.security.PasswordUtil;
 
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
@@ -20,6 +23,8 @@ public class ClientService {
             Pattern.compile("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
 
     private final ClientDAO clientDAO = new ClientDAO();
+    private final UtilisateurDAO utilisateurDAO = new UtilisateurDAO();
+    private final EmailService emailService = new EmailService();
     private final JwtUtil jwtUtil = new JwtUtil();
 
     public ClientResponse inscrire(ClientRegisterRequest req) {
@@ -52,6 +57,12 @@ public class ClientService {
         client.setTelephone(req.telephone() == null ? null : req.telephone().trim());
 
         Client cree = clientDAO.creer(client);
+
+        // Générer le code OTP et envoyer l'email de vérification
+        String otp = String.format("%06d", new SecureRandom().nextInt(1_000_000));
+        utilisateurDAO.sauvegarderOtp(email, otp, LocalDateTime.now().plusMinutes(15));
+        emailService.envoyerOtpAsync(email, client.getNom(), otp);
+
         return mapToResponse(cree);
     }
 
@@ -61,7 +72,7 @@ public class ClientService {
             throw new IllegalArgumentException("L'email et le mot de passe sont obligatoires.");
         }
 
-        String email = req.email().trim();
+        String email = req.email().trim().toLowerCase(Locale.ROOT);
         String password = req.motDePasse();
 
         Client client = clientDAO.trouverParEmail(email)
@@ -75,6 +86,11 @@ public class ClientService {
         if (StatutCompteUtilisateur.estDesactive(client.getStatutCompte())) {
             throw new AuthenticationException(
                     "Votre compte a été désactivé par l'administrateur. Veuillez le contacter.");
+        }
+
+        if (!utilisateurDAO.estEmailVerifie(email)) {
+            throw new AuthenticationException(
+                    "Veuillez valider votre adresse email avec le code de vérification reçu.");
         }
 
         // Migration transparente des anciens mots de passe stockés en clair.

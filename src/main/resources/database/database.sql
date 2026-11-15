@@ -12,6 +12,9 @@ CREATE TABLE utilisateur (
                              statut ENUM('ACTIF', 'EN_ATTENTE', 'REJETE', 'DESACTIVE') NOT NULL DEFAULT 'ACTIF',
                              telephone VARCHAR(30),
                              photo_url VARCHAR(500),
+                             email_verifie BOOLEAN DEFAULT TRUE,
+                             code_otp VARCHAR(10) DEFAULT NULL,
+                             code_otp_expiration DATETIME DEFAULT NULL,
                              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );

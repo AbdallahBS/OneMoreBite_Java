@@ -4,11 +4,16 @@ import tn.enicarthage.onemorebite.dao.AdministrateurDAO;
 import tn.enicarthage.onemorebite.dao.ClientDAO;
 import tn.enicarthage.onemorebite.dao.CommercantDAO;
 import tn.enicarthage.onemorebite.dao.StatutCompteUtilisateur;
+import tn.enicarthage.onemorebite.dao.UtilisateurDAO;
 import tn.enicarthage.onemorebite.dto.AdminResponse;
 import tn.enicarthage.onemorebite.dto.ClientResponse;
 import tn.enicarthage.onemorebite.dto.CommercantResponse;
+import tn.enicarthage.onemorebite.dto.GoogleAuthRequest;
+import tn.enicarthage.onemorebite.dto.GoogleAuthResponse;
 import tn.enicarthage.onemorebite.dto.LoginRequest;
 import tn.enicarthage.onemorebite.dto.LoginResponse;
+import tn.enicarthage.onemorebite.dto.OtpRenvoyerRequest;
+import tn.enicarthage.onemorebite.dto.OtpVerificationRequest;
 import tn.enicarthage.onemorebite.dto.UpdateProfilRequest;
 import tn.enicarthage.onemorebite.exception.AuthenticationException;
 import tn.enicarthage.onemorebite.exception.ForbiddenException;
@@ -19,8 +24,16 @@ import tn.enicarthage.onemorebite.model.Commercant;
 import tn.enicarthage.onemorebite.security.JwtUtil;
 import tn.enicarthage.onemorebite.security.PasswordUtil;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 public class AuthService {
@@ -34,6 +47,8 @@ public class AuthService {
     private final AdministrateurDAO administrateurDAO = new AdministrateurDAO();
     private final CommercantDAO commercantDAO = new CommercantDAO();
     private final ClientDAO clientDAO = new ClientDAO();
+    private final UtilisateurDAO utilisateurDAO = new UtilisateurDAO();
+    private final EmailService emailService = new EmailService();
     private final JwtUtil jwtUtil = new JwtUtil();
 
     public AuthService() {
@@ -86,6 +101,10 @@ public class AuthService {
 
             verifierCompteNonDesactive(c.getStatutCompte());
 
+            if (!utilisateurDAO.estEmailVerifie(c.getEmail())) {
+                throw new AuthenticationException("Veuillez valider votre adresse email avec le code de vérification reçu.");
+            }
+
             // Contrôle du statut du compte commerçant
             if ("EN_ATTENTE".equalsIgnoreCase(c.getStatut())) {
                 throw new AuthenticationException("Votre compte est en attente de validation par l'administrateur.");
@@ -117,6 +136,10 @@ public class AuthService {
 
             verifierCompteNonDesactive(client.getStatutCompte());
 
+            if (!utilisateurDAO.estEmailVerifie(client.getEmail())) {
+                throw new AuthenticationException("Veuillez valider votre adresse email avec le code de vérification reçu.");
+            }
+
             if (!PasswordUtil.estHashBCrypt(client.getMotDePasse())) {
                 clientDAO.mettreAJourMotDePasse(client.getId(), PasswordUtil.hash(password));
             }
@@ -133,6 +156,191 @@ public class AuthService {
         }
 
         throw new AuthenticationException("Identifiants invalides : Utilisateur introuvable ou accès non autorisé.");
+    }
+
+    public GoogleAuthResponse loginAvecGoogle(GoogleAuthRequest req) {
+        if (req == null) {
+            throw new IllegalArgumentException("La requête d'authentification Google est requise.");
+        }
+
+        String email = req.email();
+        String nom = req.nom();
+        String photoUrl = req.photoUrl();
+
+        // Si un ID token credential Google GIS est fourni, décoder ses données
+        if (req.credential() != null && req.credential().contains(".")) {
+            try {
+                String[] parts = req.credential().split("\\.");
+                if (parts.length >= 2) {
+                    byte[] payloadBytes = Base64.getUrlDecoder().decode(parts[1]);
+                    String payloadJson = new String(payloadBytes, StandardCharsets.UTF_8);
+                    Map<String, Object> claims = new Gson().fromJson(payloadJson, new TypeToken<Map<String, Object>>() {}.getType());
+                    if (claims != null) {
+                        if (claims.get("email") instanceof String em && !em.isBlank()) {
+                            email = em;
+                        }
+                        if (claims.get("name") instanceof String n && !n.isBlank()) {
+                            nom = n;
+                        }
+                        if (claims.get("picture") instanceof String p && !p.isBlank()) {
+                            photoUrl = p;
+                        }
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("Une adresse email Google valide est requise.");
+        }
+
+        email = email.trim().toLowerCase(Locale.ROOT);
+        if (nom == null || nom.isBlank()) {
+            nom = email.split("@")[0];
+        } else {
+            nom = nom.trim();
+        }
+
+        String roleDemande = req.role() != null ? req.role().trim().toUpperCase(Locale.ROOT) : "CLIENT";
+
+        // 1. Compte Administrateur existant
+        Optional<Administrateur> adminOpt = administrateurDAO.trouverParEmail(email);
+        if (adminOpt.isPresent()) {
+            Administrateur admin = adminOpt.get();
+            verifierCompteNonDesactive(admin.getStatutCompte());
+            utilisateurDAO.marquerEmailVerifie(email);
+            if (photoUrl != null && !photoUrl.isBlank()) {
+                utilisateurDAO.mettreAJourPhotoSiAbsente(admin.getId(), photoUrl);
+            }
+            String token = jwtUtil.genererToken(admin);
+            return new GoogleAuthResponse(
+                    token,
+                    "Bearer",
+                    admin.getId(),
+                    admin.getNom(),
+                    admin.getEmail(),
+                    "ADMIN",
+                    admin.getPhotoUrl(),
+                    true,
+                    false,
+                    "Connexion Google réussie en tant qu'administrateur."
+            );
+        }
+
+        // 2. Compte Commerçant existant
+        Optional<Commercant> commOpt = commercantDAO.trouverParEmail(email);
+        if (commOpt.isPresent()) {
+            Commercant c = commOpt.get();
+            verifierCompteNonDesactive(c.getStatutCompte());
+            utilisateurDAO.marquerEmailVerifie(email);
+            if (photoUrl != null && !photoUrl.isBlank()) {
+                utilisateurDAO.mettreAJourPhotoSiAbsente(c.getId(), photoUrl);
+            }
+
+            boolean profilComplet = c.getTelephone() != null && !c.getTelephone().isBlank()
+                    && c.getLocalisation() != null && !c.getLocalisation().isBlank()
+                    && !"À renseigner".equalsIgnoreCase(c.getLocalisation().trim());
+
+            String token = jwtUtil.genererToken(c);
+            return new GoogleAuthResponse(
+                    token,
+                    "Bearer",
+                    c.getId(),
+                    c.getNom(),
+                    c.getEmail(),
+                    "COMMERCANT",
+                    c.getPhotoUrl(),
+                    profilComplet,
+                    false,
+                    "Connexion Google réussie."
+            );
+        }
+
+        // 3. Compte Client existant
+        Optional<Client> clientOpt = clientDAO.trouverParEmail(email);
+        if (clientOpt.isPresent()) {
+            Client client = clientOpt.get();
+            verifierCompteNonDesactive(client.getStatutCompte());
+            utilisateurDAO.marquerEmailVerifie(email);
+            if (photoUrl != null && !photoUrl.isBlank()) {
+                utilisateurDAO.mettreAJourPhotoSiAbsente(client.getId(), photoUrl);
+            }
+
+            boolean profilComplet = client.getTelephone() != null && !client.getTelephone().isBlank();
+            String token = jwtUtil.genererToken(client);
+            return new GoogleAuthResponse(
+                    token,
+                    "Bearer",
+                    client.getId(),
+                    client.getNom(),
+                    client.getEmail(),
+                    "CLIENT",
+                    client.getPhotoUrl(),
+                    profilComplet,
+                    false,
+                    "Connexion Google réussie."
+            );
+        }
+
+        // 4. Nouvel utilisateur via Google (création sans OTP car vérifié par Google)
+        if ("COMMERCANT".equalsIgnoreCase(roleDemande)) {
+            Commercant nouveauComm = new Commercant();
+            nouveauComm.setNom(nom);
+            nouveauComm.setEmail(email);
+            nouveauComm.setMotDePasse(PasswordUtil.hash(UUID.randomUUID().toString()));
+            nouveauComm.setTelephone("");
+            nouveauComm.setLocalisation("À renseigner");
+            nouveauComm.setStatut("EN_ATTENTE");
+            nouveauComm.setPhotoUrl(photoUrl);
+
+            Commercant cree = commercantDAO.creer(nouveauComm);
+            utilisateurDAO.marquerEmailVerifie(email);
+            if (photoUrl != null && !photoUrl.isBlank()) {
+                utilisateurDAO.mettreAJourPhotoSiAbsente(cree.getId(), photoUrl);
+            }
+
+            String token = jwtUtil.genererToken(cree);
+            return new GoogleAuthResponse(
+                    token,
+                    "Bearer",
+                    cree.getId(),
+                    cree.getNom(),
+                    cree.getEmail(),
+                    "COMMERCANT",
+                    photoUrl,
+                    false, // Doit compléter son profil
+                    true,
+                    "Compte commerçant créé via Google avec succès sans code OTP."
+            );
+        } else {
+            Client nouveauClient = new Client();
+            nouveauClient.setNom(nom);
+            nouveauClient.setEmail(email);
+            nouveauClient.setMotDePasse(PasswordUtil.hash(UUID.randomUUID().toString()));
+            nouveauClient.setTelephone(null);
+            nouveauClient.setPhotoUrl(photoUrl);
+
+            Client cree = clientDAO.creer(nouveauClient);
+            utilisateurDAO.marquerEmailVerifie(email);
+            if (photoUrl != null && !photoUrl.isBlank()) {
+                utilisateurDAO.mettreAJourPhotoSiAbsente(cree.getId(), photoUrl);
+            }
+
+            String token = jwtUtil.genererToken(cree);
+            return new GoogleAuthResponse(
+                    token,
+                    "Bearer",
+                    cree.getId(),
+                    cree.getNom(),
+                    cree.getEmail(),
+                    "CLIENT",
+                    photoUrl,
+                    false, // Doit compléter son profil
+                    true,
+                    "Compte gourmand créé via Google avec succès sans code OTP."
+            );
+        }
     }
 
     public Object validerSession(String authHeader) {
@@ -315,6 +523,52 @@ public class AuthService {
         }
 
         jwtUtil.revoquerToken(extraireToken(authHeader));
+    }
+
+    public Map<String, Object> verifierOtp(OtpVerificationRequest req) {
+        if (req == null || req.email() == null || req.email().isBlank()
+                || req.code() == null || req.code().isBlank()) {
+            throw new IllegalArgumentException("L'adresse email et le code de vérification sont obligatoires.");
+        }
+
+        String email = req.email().trim().toLowerCase(Locale.ROOT);
+        String code = req.code().trim();
+
+        boolean valide = utilisateurDAO.verifierOtp(email, code);
+        if (!valide) {
+            throw new AuthenticationException("Code de vérification invalide ou expiré. Veuillez vérifier le code saisi.");
+        }
+
+        return Map.of(
+                "success", true,
+                "message", "Votre adresse email a été vérifiée avec succès !",
+                "email", email
+        );
+    }
+
+    public Map<String, Object> renvoyerOtp(OtpRenvoyerRequest req) {
+        if (req == null || req.email() == null || req.email().isBlank()) {
+            throw new IllegalArgumentException("L'adresse email est obligatoire.");
+        }
+
+        String email = req.email().trim().toLowerCase(Locale.ROOT);
+        if (!clientDAO.emailExiste(email) && !commercantDAO.emailExiste(email)) {
+            throw new ResourceNotFoundException("Aucun compte n'a été trouvé avec cette adresse email.");
+        }
+
+        String nom = clientDAO.trouverParEmail(email)
+                .map(Client::getNom)
+                .or(() -> commercantDAO.trouverParEmail(email).map(Commercant::getNom))
+                .orElse("Gourmand");
+
+        String otp = String.format("%06d", new SecureRandom().nextInt(1_000_000));
+        utilisateurDAO.sauvegarderOtp(email, otp, LocalDateTime.now().plusMinutes(15));
+        emailService.envoyerOtpAsync(email, nom, otp);
+
+        return Map.of(
+                "success", true,
+                "message", "Un nouveau code de vérification vous a été envoyé par email."
+        );
     }
 
     private void verifierCompteNonDesactive(String statutCompte) {

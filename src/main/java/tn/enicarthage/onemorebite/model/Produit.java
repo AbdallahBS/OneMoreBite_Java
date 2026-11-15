@@ -17,6 +17,8 @@ public class Produit {
     private LocalDate dateExpiration;
     private boolean disponibilite;
     private int commercantId;
+    private String commercantNom;
+    private String commercantLocalisation;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -125,6 +127,12 @@ public class Produit {
 
     public int getCommercantId() { return commercantId; }
     public void setCommercantId(int commercantId) { this.commercantId = commercantId; }
+
+    public String getCommercantNom() { return commercantNom; }
+    public void setCommercantNom(String commercantNom) { this.commercantNom = commercantNom; }
+
+    public String getCommercantLocalisation() { return commercantLocalisation; }
+    public void setCommercantLocalisation(String commercantLocalisation) { this.commercantLocalisation = commercantLocalisation; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

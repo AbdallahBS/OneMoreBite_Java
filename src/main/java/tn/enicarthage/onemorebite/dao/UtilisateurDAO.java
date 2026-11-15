@@ -155,6 +155,90 @@ public class UtilisateurDAO {
         }
     }
 
+    public boolean sauvegarderOtp(String email, String codeOtp, java.time.LocalDateTime expiration) {
+        String sql = "UPDATE utilisateur SET code_otp = ?, code_otp_expiration = ?, email_verifie = FALSE WHERE email = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, codeOtp);
+            stmt.setTimestamp(2, java.sql.Timestamp.valueOf(expiration));
+            stmt.setString(3, email);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public boolean verifierOtp(String email, String codeOtp) {
+        String sqlSelect = "SELECT code_otp, code_otp_expiration FROM utilisateur WHERE email = ?";
+        String sqlUpdate = "UPDATE utilisateur SET email_verifie = TRUE, code_otp = NULL, code_otp_expiration = NULL WHERE email = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmtSelect = conn.prepareStatement(sqlSelect)) {
+
+            stmtSelect.setString(1, email);
+            try (ResultSet rs = stmtSelect.executeQuery()) {
+                if (rs.next()) {
+                    String attendu = rs.getString("code_otp");
+                    java.sql.Timestamp exp = rs.getTimestamp("code_otp_expiration");
+                    if (attendu != null && attendu.equalsIgnoreCase(codeOtp.trim())
+                            && exp != null && exp.after(new java.util.Date())) {
+                        try (PreparedStatement stmtUpdate = conn.prepareStatement(sqlUpdate)) {
+                            stmtUpdate.setString(1, email);
+                            stmtUpdate.executeUpdate();
+                        }
+                        return true;
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    public boolean estEmailVerifie(String email) {
+        String sql = "SELECT email_verifie FROM utilisateur WHERE email = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, email);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getBoolean("email_verifie");
+                }
+            }
+        } catch (SQLException e) {
+            return true;
+        }
+        return true;
+    }
+
+    public void marquerEmailVerifie(String email) {
+        String sql = "UPDATE utilisateur SET email_verifie = TRUE, code_otp = NULL, code_otp_expiration = NULL WHERE email = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, email);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void mettreAJourPhotoSiAbsente(int id, String photoUrl) {
+        if (photoUrl == null || photoUrl.isBlank()) return;
+        String sql = "UPDATE utilisateur SET photo_url = ? WHERE id = ? AND (photo_url IS NULL OR photo_url = '')";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, photoUrl.trim());
+            stmt.setInt(2, id);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
     private UtilisateurResponse mapResultSet(ResultSet rs) throws SQLException {
         String role = rs.getString("role");
         String statut = StatutCompteUtilisateur.versApi(rs.getString("statut"));
