@@ -122,7 +122,7 @@ public class AdminService {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(
                     "Statut de réservation invalide: " + statut
-                            + ". Valeurs acceptées : EN_ATTENTE, CONFIRMEE, REFUSEE, ANNULEE.");
+                            + ". Valeurs acceptées : EN_ATTENTE, CONFIRMEE, RECUPEREE, REFUSEE, ANNULEE.");
         }
     }
 }

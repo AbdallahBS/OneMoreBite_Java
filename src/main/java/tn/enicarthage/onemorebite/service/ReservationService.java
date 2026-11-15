@@ -187,6 +187,28 @@ public class ReservationService {
         return miseAJour;
     }
 
+    /**
+     * Enregistre le retrait du panier par le client : la réservation passe de
+     * CONFIRMEE à RECUPEREE. C'est ce passage qui matérialise l'encaissement en
+     * espèces et alimente les revenus du commerçant.
+     */
+    public ReservationResponse recuperer(int id, JwtUtil.JwtClaims claims) {
+        JwtUtil.JwtClaims utilisateur = exigerCommercant(claims);
+
+        ReservationResponse reservation = trouverReservation(id);
+        verifierProprietaireCommercant(reservation, utilisateur.id());
+        if (!StatutCommande.CONFIRMEE.name().equalsIgnoreCase(reservation.statut())) {
+            throw new IllegalArgumentException(
+                    "Seules les réservations confirmées peuvent être marquées comme retirées.");
+        }
+
+        if (!reservationDAO.marquerRecuperee(id, utilisateur.id())) {
+            verifierEchecRecuperation(id, utilisateur.id());
+        }
+
+        return trouverReservation(id);
+    }
+
     private ReservationResponse trouverReservation(int id) {
         if (id <= 0) {
             throw new IllegalArgumentException("Identifiant de réservation invalide: " + id);
@@ -232,6 +254,19 @@ public class ReservationService {
         exigerStatutEnAttente(actuelle, action);
         throw new IllegalArgumentException(
                 "La réservation n'a pas pu être " + action + " en raison d'une modification concurrente.");
+    }
+
+    private void verifierEchecRecuperation(int id, int commercantId) {
+        ReservationResponse actuelle = reservationDAO.trouverParId(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Réservation non trouvée avec l'id : " + id));
+
+        verifierProprietaireCommercant(actuelle, commercantId);
+        if (!StatutCommande.CONFIRMEE.name().equalsIgnoreCase(actuelle.statut())) {
+            throw new IllegalArgumentException(
+                    "Seules les réservations confirmées peuvent être marquées comme retirées.");
+        }
+        throw new IllegalArgumentException(
+                "La réservation n'a pas pu être marquée comme retirée en raison d'une modification concurrente.");
     }
 
     private JwtUtil.JwtClaims exigerClient(JwtUtil.JwtClaims claims) {

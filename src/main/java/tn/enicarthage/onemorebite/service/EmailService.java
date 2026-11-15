@@ -169,7 +169,7 @@ public class EmailService {
                       Le client <strong>%s</strong> a annulé sa réservation <strong>#%d</strong> pour votre panier <strong>%s</strong> (quantité : x%d).
                     </p>
                     <p style="font-size: 13px; color: #346330; margin-top: 16px;">
-                      ✓ La quantité correspondante a été automatiquement réintégrée à votre stock en ligne.
+                      ✓ La réservation a été annulée et le panier est de nouveau disponible pour d'autres gourmands.
                     </p>
                   </div>
                 </body>

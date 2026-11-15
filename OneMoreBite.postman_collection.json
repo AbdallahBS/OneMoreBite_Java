@@ -4404,6 +4404,56 @@
           ]
         },
         {
+          "name": "9 bis. Enregistrer le retrait du panier (RECUPEREE)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reservations/{{reservation_id_confirm}}/recuperer",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "reservations",
+                "{{reservation_id_confirm}}",
+                "recuperer"
+              ]
+            },
+            "description": "À exécuter APRÈS « 9. Confirmer une réservation EN_ATTENTE » : le client s'est présenté au comptoir et a réglé en espèces. Fait passer la réservation de CONFIRMEE à RECUPEREE ; c'est ce statut qui alimente les revenus du commerçant (GET /reservations/recues, champ prixTotal). Réponse attendue : 200 avec statut RECUPEREE. Erreurs : 400 (réservation non confirmée), 401, 403 (autre commerçant), 404.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{commercant_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Retrait enregistré\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Le statut est RECUPEREE\", function () {",
+                  "    pm.expect(jsonData.statut).to.eql(\"RECUPEREE\");",
+                  "});",
+                  "pm.test(\"Le montant encaissé (prixTotal) est fourni\", function () {",
+                  "    pm.expect(jsonData.prixTotal).to.be.a(\"number\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
           "name": "10. Confirmer une réservation déjà confirmée (400)",
           "request": {
             "method": "PUT",

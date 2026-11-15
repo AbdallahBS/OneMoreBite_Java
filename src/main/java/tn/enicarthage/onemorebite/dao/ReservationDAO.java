@@ -228,6 +228,27 @@ public class ReservationDAO {
         }
     }
 
+    /**
+     * Marque une réservation comme retirée par le client (statut RECUPEREE).
+     * Le UPDATE est conditionnel : la réservation doit être CONFIRMEE et porter
+     * sur un produit du commerçant. C'est ce statut qui alimente les revenus.
+     */
+    public boolean marquerRecuperee(int id, int commercantId) {
+        String sql = "UPDATE commande SET statut = 'RECUPEREE' " +
+                     "WHERE id = ? AND statut = 'CONFIRMEE' " +
+                     "AND produit_id IN (SELECT id FROM produit WHERE commercant_id = ?)";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, id);
+            stmt.setInt(2, commercantId);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
     private void verifierProduitDisponible(Connection conn, int produitId, int quantite) throws SQLException {
         String sql = "SELECT quantite, disponibilite FROM produit WHERE id = ? FOR UPDATE";
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -253,16 +274,18 @@ public class ReservationDAO {
         Date dateExpiration = rs.getDate("produit_date_expiration");
         int clientId = rs.getInt("client_id");
         Integer clientIdNullable = rs.wasNull() ? null : clientId;
+        int quantite = rs.getInt("quantite");
+        double produitPrix = rs.getDouble("produit_prix");
 
         return new ReservationResponse(
                 rs.getInt("id"),
                 dateCommande != null ? dateCommande.toLocalDateTime().toString() : null,
-                rs.getInt("quantite"),
+                quantite,
                 rs.getString("statut"),
                 rs.getInt("produit_id"),
                 rs.getString("produit_nom"),
                 rs.getString("produit_description"),
-                rs.getDouble("produit_prix"),
+                produitPrix,
                 rs.getString("produit_image_url"),
                 dateExpiration != null ? dateExpiration.toLocalDate() : null,
                 rs.getInt("produit_quantite"),
@@ -276,7 +299,8 @@ public class ReservationDAO {
                 rs.getString("client_telephone"),
                 rs.getString("nom_invite"),
                 rs.getString("email_invite"),
-                rs.getString("telephone_invite")
+                rs.getString("telephone_invite"),
+                produitPrix * quantite
         );
     }
 

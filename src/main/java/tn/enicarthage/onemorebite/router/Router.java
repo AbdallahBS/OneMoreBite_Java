@@ -543,6 +543,10 @@ public class Router {
                     JwtUtil.JwtClaims claims = exigerTokenCommercantReservation(exchange);
                     yield new Reponse(200, gson.toJson(reservationController.refuser(id, claims)));
                 }
+                case "recuperer", "retirer" -> {
+                    JwtUtil.JwtClaims claims = exigerTokenCommercantReservation(exchange);
+                    yield new Reponse(200, gson.toJson(reservationController.recuperer(id, claims)));
+                }
                 default -> throw new ResourceNotFoundException("Action réservation inconnue: " + action);
             };
         }

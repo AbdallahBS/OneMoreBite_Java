@@ -6,7 +6,7 @@ import java.time.LocalDate;
  * Vue détaillée d'une réservation (table commande) avec les informations du
  * produit, du commerçant et du client associés. Les statuts exposés sont les
  * valeurs existantes de l'enum StatutCommande : EN_ATTENTE, CONFIRMEE,
- * REFUSEE, ANNULEE.
+ * RECUPEREE, REFUSEE, ANNULEE.
  */
 public record ReservationResponse(
         int id,
@@ -30,5 +30,7 @@ public record ReservationResponse(
         String clientTelephone,
         String nomInvite,
         String emailInvite,
-        String telephoneInvite
+        String telephoneInvite,
+        /** Montant total à régler en espèces (prix unitaire × quantité). */
+        double prixTotal
 ) {}

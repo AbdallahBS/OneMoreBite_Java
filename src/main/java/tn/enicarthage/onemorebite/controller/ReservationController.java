@@ -43,4 +43,8 @@ public class ReservationController {
     public ReservationResponse refuser(int id, JwtUtil.JwtClaims claims) {
         return reservationService.refuser(id, claims);
     }
+
+    public ReservationResponse recuperer(int id, JwtUtil.JwtClaims claims) {
+        return reservationService.recuperer(id, claims);
+    }
 }

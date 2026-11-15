@@ -149,6 +149,17 @@ public class Main {
                     System.out.println("Info migration code_otp_expiration : " + e.getMessage());
                 }
             }
+
+            // 4. Ajouter le statut RECUPEREE (client venu retirer sa réservation).
+            // Idempotent : MODIFY COLUMN réapplique simplement la même définition.
+            try {
+                stmt.executeUpdate(
+                        "ALTER TABLE commande MODIFY COLUMN statut " +
+                        "ENUM('EN_ATTENTE', 'CONFIRMEE', 'RECUPEREE', 'REFUSEE', 'ANNULEE') " +
+                        "DEFAULT 'EN_ATTENTE'");
+            } catch (SQLException e) {
+                System.out.println("Info migration statut commande : " + e.getMessage());
+            }
         } catch (Exception e) {
             System.out.println("Avertissement migrations automatiques : " + e.getMessage());
         }
