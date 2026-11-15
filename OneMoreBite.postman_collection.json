@@ -5913,6 +5913,56 @@
           ]
         },
         {
+          "name": "4 bis. Lister mes avis du client connecté (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/avis/mes-avis",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "avis",
+                "mes-avis"
+              ]
+            },
+            "description": "Retourne uniquement les avis rédigés par le client authentifié (client déduit du token). Utilisé par l'onglet « Mes avis » du tableau de bord client pour permettre la modification (PUT /avis/{id}) et la suppression (DELETE /avis/{id}). Réponse attendue : 200 avec un tableau d'avis. Erreurs : 401 (token absent), 403 (token non client).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{client_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Statut HTTP 200 - Liste des avis du client\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"La réponse est un tableau\", function () {",
+                  "    pm.expect(jsonData).to.be.an(\"array\");",
+                  "});",
+                  "pm.test(\"Tous les avis appartiennent au client authentifié\", function () {",
+                  "    var ids = [...new Set(jsonData.map(function (a) { return a.clientId; }))];",
+                  "    pm.expect(ids.length).to.be.at.most(1);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
           "name": "5. Lister tous les avis (200)",
           "request": {
             "method": "GET",

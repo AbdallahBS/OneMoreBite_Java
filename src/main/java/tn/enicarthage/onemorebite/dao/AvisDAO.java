@@ -57,6 +57,11 @@ public class AvisDAO {
         return lister(SELECT_AVIS + "WHERE av.commercant_id = ? ORDER BY av.date_avis DESC, av.id DESC", commercantId);
     }
 
+    /** Avis rédigés par un client, pour qu'il puisse les modifier ou les supprimer. */
+    public List<AvisResponse> listerParClient(int clientId) {
+        return lister(SELECT_AVIS + "WHERE av.client_id = ? ORDER BY av.date_avis DESC, av.id DESC", clientId);
+    }
+
     private List<AvisResponse> lister(String sql, Integer parametre) {
         List<AvisResponse> avis = new ArrayList<>();
         try (Connection conn = DatabaseConnection.getConnection();

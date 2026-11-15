@@ -21,6 +21,10 @@ public class AvisController {
         return avisService.lister(commercantId);
     }
 
+    public List<AvisResponse> listerMesAvis(JwtUtil.JwtClaims claims) {
+        return avisService.listerMesAvis(claims);
+    }
+
     public AvisCommercantResponse listerParCommercant(int commercantId) {
         return avisService.listerParCommercant(commercantId);
     }

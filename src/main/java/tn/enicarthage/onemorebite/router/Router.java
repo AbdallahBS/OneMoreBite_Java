@@ -99,6 +99,11 @@ public class Router {
             envoyer(exchange, 400, messageErreur(e.getMessage()));
         } catch (ServiceUnavailableException e) {
             envoyer(exchange, 503, messageErreur(e.getMessage()));
+        } catch (IllegalStateException e) {
+            // Erreur de configuration / d'intégrité côté serveur : le message
+            // est volontairement explicite (ex. colonne statut non migrée).
+            System.out.println("Erreur d'état : " + e.getMessage());
+            envoyer(exchange, 500, messageErreur(e.getMessage()));
         } catch (IOException e) {
             // Connexion réseau interrompue par le client (socket abort / reset)
             System.out.println("Avertissement réseau : connexion fermée par le client (" + e.getMessage() + ")");
@@ -571,6 +576,16 @@ public class Router {
                 }
                 default -> throw new IllegalArgumentException("Méthode non supportée: " + methode);
             };
+        }
+
+        // GET /avis/mes-avis : avis du client connecté (pour modification/suppression)
+        if (segments.length == 3 && ("mes-avis".equalsIgnoreCase(segments[2])
+                || "mes".equalsIgnoreCase(segments[2]))) {
+            if (!"GET".equalsIgnoreCase(methode)) {
+                throw new IllegalArgumentException("Méthode non supportée: " + methode);
+            }
+            JwtUtil.JwtClaims claims = exigerTokenClient(exchange);
+            return new Reponse(200, gson.toJson(avisController.listerMesAvis(claims)));
         }
 
         // PUT /avis/{id} : client propriétaire ; DELETE /avis/{id} : client propriétaire ou admin

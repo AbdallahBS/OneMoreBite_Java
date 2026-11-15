@@ -66,6 +66,12 @@ public class AvisService {
         return avisDAO.listerParCommercant(commercantId);
     }
 
+    /** Avis du client connecté (les siens uniquement), pour modification/suppression. */
+    public List<AvisResponse> listerMesAvis(JwtUtil.JwtClaims claims) {
+        JwtUtil.JwtClaims utilisateur = exigerClient(claims);
+        return avisDAO.listerParClient(utilisateur.id());
+    }
+
     public AvisCommercantResponse listerParCommercant(int commercantId) {
         if (commercantId <= 0) {
             throw new IllegalArgumentException("Identifiant de commerçant invalide: " + commercantId);

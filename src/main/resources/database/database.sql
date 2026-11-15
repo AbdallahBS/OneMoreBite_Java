@@ -1,8 +1,34 @@
-DROP DATABASE IF EXISTS onemorebite_db;
-CREATE DATABASE onemorebite_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE onemorebite_db;
+-- ============================================================================
+-- One More Bite — script unique de création de la base de données
+-- ============================================================================
+--
+-- ⚠️  CE SCRIPT EST DESTRUCTIF : il supprime puis recrée la base
+--     `onemorebite_db`, avec le schéma final et des données de démonstration.
+--
+-- Ce fichier remplace tous les anciens scripts `migration_*.sql`. Il contient
+-- déjà l'ensemble de leurs évolutions :
+--   • utilisateur.photo_url, email_verifie, code_otp, code_otp_expiration
+--   • produit.image_url en TEXT (URLs multiples séparées par des virgules)
+--   • utilisateur.statut (ACTIF / EN_ATTENTE / REJETE / DESACTIVE)
+--   • commercant.statut (workflow de validation)
+--   • avis.client_id + avis.commercant_id (avis rattachés au commerçant)
+--   • commande.statut avec REFUSEE et RECUPEREE
+--
+-- Pour une base existante que l'on ne veut PAS réinitialiser, ne pas exécuter
+-- ce script : les évolutions de schéma sont appliquées automatiquement au
+-- démarrage du backend (voir `Main.verifierEtAppliquerMigrations`), sauf si
+-- `APP_ENV=production`.
+-- ============================================================================
 
--- 1. Tables
+SET NAMES utf8mb4;
+
+DROP DATABASE IF EXISTS onemorebite;
+CREATE DATABASE onemorebite CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE onemorebite;
+
+-- ============================================================================
+-- 1. Tables (schéma final)
+-- ============================================================================
 
 CREATE TABLE utilisateur (
                              id INT AUTO_INCREMENT PRIMARY KEY,
@@ -86,7 +112,9 @@ CREATE TABLE avis (
                       CONSTRAINT fk_avis_commercant FOREIGN KEY (commercant_id) REFERENCES commercant(id) ON DELETE CASCADE
 );
 
--- 2. Insertions ordonnées
+-- ============================================================================
+-- 2. Données de démonstration
+-- ============================================================================
 
 INSERT INTO utilisateur (id, nom, email, mot_de_passe, statut, telephone) VALUES
                                                                       (1, 'Admin Enicar', 'admin@enicar.com', 'admin', 'ACTIF', '71000000'),

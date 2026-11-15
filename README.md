@@ -28,7 +28,7 @@ API Java 17 (HTTP server natif) pour la gestion d'une plateforme anti-gaspillage
 ## Initialisation de la base
 
 1. Démarrer MySQL.
-2. Exécuter `src/main/resources/database/database.sql`, ou lancer la classe `DatabaseConnection` qui crée la base et charge le script.
+2. Exécuter `src/main/resources/database/database.sql` (script unique, destructif : il recrée la base et insère des données de démonstration).
 3. Lancer `Main` (serveur sur `http://localhost:8081` par défaut).
 
 Le port HTTP peut être changé avec la variable d'environnement `PORT` (ou la
@@ -240,20 +240,17 @@ Importer `OneMoreBite.postman_collection.json`. La collection contient :
 
 Les scripts de test enregistrent automatiquement les tokens et les identifiants de produits dans les variables de collection (`admin_token`, `commercant_token`, `client_token`, `produit_id`, `admin_produit_id`, `image_url`, `image_public_id`, `reservation_id`, `avis_id`, etc.).
 
-## Migration base de données
+## Base de données
 
-Pour une base existante créée avant l'ajout des réservations commerçant, exécuter
-`src/main/resources/database/migration_reservation_refusee.sql`. Cette migration
-ajoute uniquement la valeur `REFUSEE` à l'enum `commande.statut`, nécessaire pour
-distinguer un refus commerçant d'une annulation client. Le script complet
-`src/main/resources/database/database.sql` contient déjà ce statut.
+Un seul script fait référence : `src/main/resources/database/database.sql`.
+Il contient le **schéma final** (toutes les anciennes migrations `migration_*.sql`
+y sont intégrées : `photo_url`, `email_verifie`, `code_otp`, `image_url` en TEXT,
+`utilisateur.statut`, `avis.commercant_id`, statuts `REFUSEE` et `RECUPEREE`).
+Les scripts de migration séparés ont été supprimés.
 
-Pour une base existante créée avant le module de gestion des avis, exécuter
-`src/main/resources/database/migration_avis_commercant.sql`. Cette migration
-rattache les avis existants au commerçant (via `produit.commercant_id`) et
-remplace `avis.produit_id` par `avis.commercant_id`.
+⚠️ Ce script est **destructif** (`DROP DATABASE` puis recréation) : il sert à
+installer une base propre ou à repartir de zéro avec les données de démonstration.
 
-Pour une base existante créée avant la supervision des utilisateurs, exécuter
-`src/main/resources/database/migration_utilisateur_statut.sql`. Cette migration
-ajoute `utilisateur.statut` (`ACTIF`, `EN_ATTENTE`, `REJETE`, `DESACTIVE`) et
-aligne le statut des commerçants existants sur leur statut métier.
+Pour une base **existante à conserver**, ne pas exécuter ce script : le backend
+applique automatiquement les évolutions de schéma au démarrage
+(`Main.verifierEtAppliquerMigrations`), sauf lorsque `APP_ENV=production`.

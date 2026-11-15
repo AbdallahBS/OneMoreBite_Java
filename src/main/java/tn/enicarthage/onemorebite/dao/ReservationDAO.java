@@ -245,6 +245,16 @@ public class ReservationDAO {
             return stmt.executeUpdate() > 0;
         } catch (SQLException e) {
             e.printStackTrace();
+            // 1265 = WARN_DATA_TRUNCATED : la base refuse la valeur 'RECUPEREE'
+            // car l'enum de commande.statut n'a pas été migré. Message explicite
+            // plutôt que l'erreur générique « modification concurrente ».
+            if (e.getErrorCode() == 1265) {
+                throw new IllegalStateException(
+                        "La base de données refuse le statut RECUPEREE : la colonne 'commande.statut' "
+                        + "n'a pas été migrée. Exécutez : ALTER TABLE commande MODIFY COLUMN statut "
+                        + "ENUM('EN_ATTENTE','CONFIRMEE','RECUPEREE','REFUSEE','ANNULEE') DEFAULT 'EN_ATTENTE';",
+                        e);
+            }
             return false;
         }
     }

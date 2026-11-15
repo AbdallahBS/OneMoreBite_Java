@@ -2,6 +2,7 @@ package tn.enicarthage.onemorebite;
 
 import java.io.IOException;
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import tn.enicarthage.onemorebite.config.DatabaseConnection;
@@ -66,6 +67,7 @@ public class Main {
             System.out.println("  GET  http://localhost:" + PORT + "/avis                      (Public: liste des avis ?commercantId=2)");
             System.out.println("  GET  http://localhost:" + PORT + "/commercants/:id/avis      (Public: avis d'un commerçant + note moyenne)");
             System.out.println("  POST http://localhost:" + PORT + "/avis                      (Client: créer un avis)");
+            System.out.println("  GET  http://localhost:" + PORT + "/avis/mes-avis             (Client: ses propres avis)");
             System.out.println("  PUT  http://localhost:" + PORT + "/avis/:id                  (Client propriétaire: modifier son avis)");
             System.out.println("  DELETE http://localhost:" + PORT + "/avis/:id                (Client propriétaire / Admin: supprimer un avis)");
             System.out.println("  GET  http://localhost:" + PORT + "/admin/commercants         (Admin: Liste des commerçants ?statut=EN_ATTENTE)");
@@ -101,10 +103,45 @@ public class Main {
             if (!"production".equalsIgnoreCase(System.getenv("APP_ENV"))) {
                 verifierEtAppliquerMigrations(connection);
             }
+            // Toujours vérifié, y compris en production où les migrations
+            // automatiques sont désactivées : sans RECUPEREE dans l'enum, le
+            // bouton « Retrait effectué » renvoie une erreur SQL trompeuse.
+            verifierEnumRecuperee(connection);
             return true;
         } catch (Exception e) {
             System.out.println("Erreur de connexion : " + e.getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Contrôle que la colonne commande.statut accepte la valeur RECUPEREE et
+     * affiche la commande SQL corrective si ce n'est pas le cas.
+     */
+    private static void verifierEnumRecuperee(Connection conn) {
+        String sql = "SELECT column_type FROM information_schema.COLUMNS " +
+                     "WHERE table_schema = DATABASE() AND table_name = 'commande' " +
+                     "AND column_name = 'statut'";
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            if (!rs.next()) {
+                System.out.println("Avertissement : impossible de vérifier la colonne 'commande.statut'.");
+                return;
+            }
+            String type = rs.getString("column_type");
+            if (type != null && type.contains("RECUPEREE")) {
+                System.out.println("Vérification : le statut RECUPEREE est autorisé sur 'commande.statut'.");
+                return;
+            }
+            System.out.println("ATTENTION : la colonne 'commande.statut' n'accepte pas RECUPEREE (type actuel : "
+                    + type + ").");
+            System.out.println("            Le bouton « Retrait effectué » échouera avec « Data truncated for column 'statut' ».");
+            System.out.println("            Exécutez cette requête sur la base utilisée par ce serveur :");
+            System.out.println("            ALTER TABLE commande MODIFY COLUMN statut");
+            System.out.println("              ENUM('EN_ATTENTE','CONFIRMEE','RECUPEREE','REFUSEE','ANNULEE') DEFAULT 'EN_ATTENTE';");
+        } catch (SQLException e) {
+            System.out.println("Avertissement vérification statut commande : " + e.getMessage());
         }
     }
 
@@ -158,6 +195,9 @@ public class Main {
                         "ENUM('EN_ATTENTE', 'CONFIRMEE', 'RECUPEREE', 'REFUSEE', 'ANNULEE') " +
                         "DEFAULT 'EN_ATTENTE'");
             } catch (SQLException e) {
+                // Fréquent sur une base managée dont l'utilisateur n'a pas le
+                // droit ALTER : le contrôle verifierEnumRecuperee affichera la
+                // commande SQL à exécuter manuellement.
                 System.out.println("Info migration statut commande : " + e.getMessage());
             }
         } catch (Exception e) {
