@@ -2,10 +2,11 @@ package tn.enicarthage.onemorebite.service;
 
 import tn.enicarthage.onemorebite.dto.ReservationResponse;
 
-import com.resend.Resend;
-import com.resend.core.exception.ResendException;
-import com.resend.services.emails.model.CreateEmailOptions;
-import com.resend.services.emails.model.CreateEmailResponse;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -183,43 +184,84 @@ public class EmailService {
         envoyerEmailAsync(emailCommercant, sujet, html);
     }
 
-
     public void envoyerEmail(String destinataire, String sujet, String contenuHtml)
             throws IOException {
 
-        String apiKey = System.getenv("RESEND_API_KEY");
-
-        if (apiKey == null || apiKey.isBlank()) {
-            throw new IOException("RESEND_API_KEY non configurée.");
-        }
-
-        String from = System.getenv().getOrDefault(
-                "RESEND_FROM_EMAIL",
-                "One More Bite <onboarding@resend.dev>"
+        String apiKey = System.getenv("BREVO_API_KEY");
+        String fromEmail = System.getenv("BREVO_FROM_EMAIL");
+        String fromName = System.getenv().getOrDefault(
+                "BREVO_FROM_NAME", "One More Bite"
         );
 
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IOException("BREVO_API_KEY non configurée.");
+        }
+
+        if (fromEmail == null || fromEmail.isBlank()) {
+            throw new IOException("BREVO_FROM_EMAIL non configurée.");
+        }
+
+        String json = """
+        {
+          "sender": {
+            "name": "%s",
+            "email": "%s"
+          },
+          "to": [
+            {
+              "email": "%s"
+            }
+          ],
+          "subject": "%s",
+          "htmlContent": "%s"
+        }
+        """.formatted(
+                escapeJson(fromName),
+                escapeJson(fromEmail),
+                escapeJson(destinataire),
+                escapeJson(sujet),
+                escapeJson(contenuHtml)
+        );
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.brevo.com/v3/smtp/email"))
+                .header("accept", "application/json")
+                .header("content-type", "application/json")
+                .header("api-key", apiKey)
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        json, StandardCharsets.UTF_8
+                ))
+                .build();
+
         try {
-            Resend resend = new Resend(apiKey);
+            HttpResponse<String> response = HttpClient.newHttpClient()
+                    .send(request, HttpResponse.BodyHandlers.ofString());
 
-            CreateEmailOptions params = CreateEmailOptions.builder()
-                    .from(from)
-                    .to(destinataire)
-                    .subject(sujet)
-                    .html(contenuHtml)
-                    .build();
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new IOException(
+                        "Brevo API error (" + response.statusCode() + "): "
+                                + response.body()
+                );
+            }
 
-            CreateEmailResponse response = resend.emails().send(params);
+            System.out.println("[EmailService] Email accepté par Brevo.");
 
-            System.out.println(
-                    "[EmailService] Email accepté par Resend. ID: "
-                            + response.getId()
-            );
-
-        } catch (ResendException e) {
-            throw new IOException(
-                    "Erreur lors de l'envoi via Resend: " + e.getMessage(), e
-            );
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Envoi email interrompu.", e);
         }
     }
-    
+
+    private String escapeJson(String value) {
+        return value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\b", "\\b")
+                .replace("\f", "\\f")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
+    }
+
+
 }
